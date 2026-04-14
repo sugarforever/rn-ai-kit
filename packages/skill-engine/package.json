@@ -9,9 +9,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "react-native-webview": "~13.12.0",
-    "expo-sqlite": "~15.0.0",
-    "expo-file-system": "~18.0.0"
+    "react-native-webview": "~13.16.1",
+    "expo-sqlite": "~55.0.15",
+    "expo-file-system": "~55.0.16"
   },
   "peerDependencies": {
     "react": ">=18.0.0",
