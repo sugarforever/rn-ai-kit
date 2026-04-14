@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@pi-ai-rn/auth": ["packages/auth/src"],
+      "@pi-ai-rn/skill-engine": ["packages/skill-engine/src"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}

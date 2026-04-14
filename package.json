@@ -1,0 +1,13 @@
+{
+  "name": "pi-ai-react-native",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "test": "jest",
+    "typecheck": "tsc --noEmit"
+  }
+}
