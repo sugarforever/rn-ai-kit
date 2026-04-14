@@ -17,6 +17,12 @@ export class SqliteProxy {
     sql: string;
     params?: unknown[];
   }): Promise<Record<string, unknown>[]> {
+    // Enforce read-only: only SELECT and WITH (CTE) queries are allowed
+    const trimmed = payload.sql.trim().toUpperCase();
+    if (!trimmed.startsWith('SELECT') && !trimmed.startsWith('WITH')) {
+      throw new Error('Only SELECT queries are allowed via query()');
+    }
+
     if (payload.params?.length) {
       return this.db.getAllSync(payload.sql, ...payload.params);
     }

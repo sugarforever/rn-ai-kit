@@ -42,18 +42,22 @@ export class OAuthMobileAdapter {
   }
 
   generatePKCE(): { codeVerifier: string; codeChallenge: string } {
-    // Use Node.js crypto for PKCE (expo-crypto is not available in test environment)
-    // In the real app, this will work in both environments
-    const crypto = require('crypto');
-    const bytes = crypto.randomBytes(32);
+    // Use Node.js crypto — works in both test (Node) and React Native (Hermes polyfills)
+    // If running in an environment without Node crypto, swap to expo-crypto
+    const nodeCrypto = require('crypto');
+    const bytes: Buffer = nodeCrypto.randomBytes(32);
     const codeVerifier = base64UrlEncode(bytes);
-    const hash = crypto.createHash('sha256').update(codeVerifier).digest();
+    const hash: Buffer = nodeCrypto.createHash('sha256').update(codeVerifier).digest();
     const codeChallenge = base64UrlEncode(hash);
     return { codeVerifier, codeChallenge };
   }
 }
 
 function base64UrlEncode(buffer: Uint8Array | Buffer): string {
-  const base64 = Buffer.from(buffer).toString('base64');
-  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  let binary = '';
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }

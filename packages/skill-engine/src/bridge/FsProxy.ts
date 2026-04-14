@@ -1,10 +1,12 @@
 import * as FileSystem from 'expo-file-system';
+import * as path from 'path';
 
 export class FsProxy {
   private baseDir: string;
 
   constructor(skillDataDir: string) {
-    this.baseDir = skillDataDir;
+    // Normalize baseDir to ensure consistent prefix checking
+    this.baseDir = path.resolve(skillDataDir);
   }
 
   async read(payload: { path: string }): Promise<string> {
@@ -20,7 +22,10 @@ export class FsProxy {
   }
 
   private resolveSafePath(relativePath: string): string {
-    const normalized = relativePath.replace(/\.\./g, '').replace(/^\//, '');
-    return `${this.baseDir}/${normalized}`;
+    const resolved = path.resolve(this.baseDir, relativePath);
+    if (!resolved.startsWith(this.baseDir + '/') && resolved !== this.baseDir) {
+      throw new Error('Path traversal not allowed');
+    }
+    return resolved;
   }
 }

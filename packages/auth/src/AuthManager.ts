@@ -11,11 +11,13 @@ const PROVIDERS: OAuthProviderConfig[] = [
   googleGeminiProvider, googleAntigravityProvider,
 ];
 
-const refreshLocks = new Map<string, Promise<void>>();
+const REDIRECT_URI = 'pi-ai-rn://oauth/callback';
+const DEVICE_CODE_MAX_POLLS = 60; // ~5 minutes at 5s intervals
 
 export class AuthManager {
   private backend: SecureStoreBackend;
   private oauth: OAuthMobileAdapter;
+  private refreshLocks = new Map<string, Promise<void>>();
 
   constructor(
     backend: SecureStoreBackend = new SecureStoreBackend(),
@@ -88,7 +90,7 @@ export class AuthManager {
   private async exchangeCode(
     provider: OAuthProviderConfig, code: string, codeVerifier: string,
   ): Promise<TokenResponse> {
-    const redirectUri = 'pi-ai-rn://oauth/callback';
+    const redirectUri = REDIRECT_URI;
     const res = await fetch(provider.tokenEndpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -102,8 +104,8 @@ export class AuthManager {
   }
 
   private async refreshToken(providerId: string, cred: StoredCredential): Promise<void> {
-    if (refreshLocks.has(providerId)) {
-      await refreshLocks.get(providerId);
+    if (this.refreshLocks.has(providerId)) {
+      await this.refreshLocks.get(providerId);
       return;
     }
     const provider = PROVIDERS.find((p) => p.id === providerId);
@@ -129,23 +131,26 @@ export class AuthManager {
       });
     })();
 
-    refreshLocks.set(providerId, promise);
-    try { await promise; } finally { refreshLocks.delete(providerId); }
+    this.refreshLocks.set(providerId, promise);
+    try { await promise; } finally { this.refreshLocks.delete(providerId); }
   }
 
-  private async loginDeviceCode(provider: OAuthProviderConfig): Promise<boolean> {
+  private async loginDeviceCode(
+    provider: OAuthProviderConfig,
+  ): Promise<boolean> {
     const codeRes = await fetch(provider.authorizeEndpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({ client_id: provider.clientId, scope: provider.scopes.join(' ') }),
     });
     if (!codeRes.ok) throw new Error('Device code request failed');
-    const { device_code, user_code, verification_uri, interval } = await codeRes.json();
+    const { device_code, verification_uri, interval } = await codeRes.json();
+
     const { openBrowserAsync } = await import('expo-web-browser');
     await openBrowserAsync(verification_uri);
 
-    const pollInterval = (interval ?? 5) * 1000;
-    while (true) {
+    let pollInterval = (interval ?? 5) * 1000;
+    for (let attempt = 0; attempt < DEVICE_CODE_MAX_POLLS; attempt++) {
       await new Promise((r) => setTimeout(r, pollInterval));
       const tokenRes = await fetch(provider.tokenEndpoint, {
         method: 'POST',
@@ -165,7 +170,10 @@ export class AuthManager {
         return true;
       }
       if (data.error === 'expired_token' || data.error === 'access_denied') return false;
+      if (data.error === 'slow_down') pollInterval += 5000;
     }
+
+    return false; // Timed out
   }
 }
 
