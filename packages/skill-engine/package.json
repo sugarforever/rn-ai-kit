@@ -27,6 +27,9 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
-    "roots": ["<rootDir>/__tests__"]
+    "roots": ["<rootDir>/__tests__"],
+    "moduleNameMapper": {
+      "^expo-file-system$": "<rootDir>/__mocks__/expo-file-system.ts"
+    }
   }
 }
