@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "Pi AI Example",
+    "slug": "pi-ai-rn-example",
+    "version": "0.1.0",
+    "scheme": "pi-ai-rn",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.piai.rn.example"
+    },
+    "plugins": ["expo-router", "expo-secure-store"]
+  }
+}

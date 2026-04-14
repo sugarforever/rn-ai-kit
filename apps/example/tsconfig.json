@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@pi-ai-rn/auth": ["../../packages/auth/src"],
+      "@pi-ai-rn/skill-engine": ["../../packages/skill-engine/src"]
+    }
+  },
+  "include": ["src"]
+}
