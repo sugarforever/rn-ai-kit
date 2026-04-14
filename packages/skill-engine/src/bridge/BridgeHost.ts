@@ -1,13 +1,13 @@
 import type { BridgeMessage, BridgeResponse } from '../types';
 import { FetchProxy } from './FetchProxy';
-import { SqliteProxy } from './SqliteProxy';
+import { SqliteProxy, type SQLiteDatabase } from './SqliteProxy';
 import { FsProxy } from './FsProxy';
 
 export interface BridgeHostConfig {
   skillId: string;
   allowedDomains: string[];
   sendToWebView: (response: BridgeResponse) => void;
-  db?: any;
+  db?: SQLiteDatabase;
   dataDir?: string;
 }
 

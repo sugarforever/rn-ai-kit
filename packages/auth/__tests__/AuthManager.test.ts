@@ -20,12 +20,28 @@ jest.mock('expo-linking', () => ({
   createURL: jest.fn((path: string) => `pi-ai-rn://${path}`),
 }));
 
+// Mock expo-crypto (used by OAuthMobileAdapter.generatePKCE)
+jest.mock('expo-crypto', () => ({
+  getRandomBytes: jest.fn((size: number) => {
+    const crypto = require('crypto');
+    return new Uint8Array(crypto.randomBytes(size));
+  }),
+  digestStringAsync: jest.fn(async (_algo: string, data: string) => {
+    const crypto = require('crypto');
+    return crypto.createHash('sha256').update(data).digest('hex');
+  }),
+  CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
+}));
+
 const mockBackend: jest.Mocked<SecureStoreBackend> = {
   get: jest.fn(), set: jest.fn(), delete: jest.fn(), listProviderIds: jest.fn(),
 } as any;
 
 const mockOAuth: jest.Mocked<OAuthMobileAdapter> = {
-  buildAuthUrl: jest.fn(), authorize: jest.fn(), generatePKCE: jest.fn(),
+  buildAuthUrl: jest.fn(),
+  authorize: jest.fn(),
+  generatePKCE: jest.fn(),
+  redirectUri: 'pi-ai-rn://oauth/callback',
 } as any;
 
 global.fetch = jest.fn() as jest.Mock;
@@ -68,7 +84,7 @@ describe('AuthManager', () => {
   });
 
   it('login performs OAuth flow and stores credential', async () => {
-    mockOAuth.generatePKCE.mockReturnValue({ codeVerifier: 'verifier123', codeChallenge: 'challenge123' });
+    mockOAuth.generatePKCE.mockResolvedValue({ codeVerifier: 'verifier123', codeChallenge: 'challenge123' });
     mockOAuth.buildAuthUrl.mockReturnValue('https://auth.example.com/authorize?...');
     mockOAuth.authorize.mockResolvedValue('auth-code-xyz');
     (global.fetch as jest.Mock).mockResolvedValue({
@@ -84,7 +100,7 @@ describe('AuthManager', () => {
   });
 
   it('login returns false when user cancels', async () => {
-    mockOAuth.generatePKCE.mockReturnValue({ codeVerifier: 'v', codeChallenge: 'c' });
+    mockOAuth.generatePKCE.mockResolvedValue({ codeVerifier: 'v', codeChallenge: 'c' });
     mockOAuth.buildAuthUrl.mockReturnValue('https://auth.example.com/authorize');
     mockOAuth.authorize.mockResolvedValue(null);
 

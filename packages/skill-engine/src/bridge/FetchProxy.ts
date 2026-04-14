@@ -10,7 +10,7 @@ export class FetchProxy {
     options?: RequestInit;
   }): Promise<{ status: number; body: string; headers: Record<string, string> }> {
     const url = new URL(payload.url);
-    if (this.allowedDomains.length > 0 && !this.allowedDomains.includes(url.hostname)) {
+    if (!this.allowedDomains.includes(url.hostname)) {
       throw new Error(`Domain ${url.hostname} is not allowed for this skill`);
     }
 

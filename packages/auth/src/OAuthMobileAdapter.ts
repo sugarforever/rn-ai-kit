@@ -1,5 +1,6 @@
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+import * as Crypto from 'expo-crypto';
 
 const REDIRECT_PATH = 'oauth/callback';
 
@@ -13,7 +14,7 @@ export interface AuthUrlParams {
 }
 
 export class OAuthMobileAdapter {
-  private get redirectUri(): string {
+  get redirectUri(): string {
     return Linking.createURL(REDIRECT_PATH);
   }
 
@@ -41,16 +42,21 @@ export class OAuthMobileAdapter {
     return url.searchParams.get('code');
   }
 
-  generatePKCE(): { codeVerifier: string; codeChallenge: string } {
-    // Use Node.js crypto — works in both test (Node) and React Native (Hermes polyfills)
-    // If running in an environment without Node crypto, swap to expo-crypto
-    const nodeCrypto = require('crypto');
-    const bytes: Buffer = nodeCrypto.randomBytes(32);
+  async generatePKCE(): Promise<{ codeVerifier: string; codeChallenge: string }> {
+    const bytes = Crypto.getRandomBytes(32);
     const codeVerifier = base64UrlEncode(bytes);
-    const hash: Buffer = nodeCrypto.createHash('sha256').update(codeVerifier).digest();
-    const codeChallenge = base64UrlEncode(hash);
+    const hashHex = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      codeVerifier,
+    );
+    const codeChallenge = hexToBase64Url(hashHex);
     return { codeVerifier, codeChallenge };
   }
+}
+
+function hexToBase64Url(hex: string): string {
+  const bytes = new Uint8Array(hex.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
+  return base64UrlEncode(bytes);
 }
 
 function base64UrlEncode(buffer: Uint8Array | Buffer): string {

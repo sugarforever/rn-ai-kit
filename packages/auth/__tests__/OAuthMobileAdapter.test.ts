@@ -8,6 +8,18 @@ jest.mock('expo-linking', () => ({
   createURL: jest.fn((path: string) => `pi-ai-rn://${path}`),
 }));
 
+jest.mock('expo-crypto', () => ({
+  getRandomBytes: jest.fn((size: number) => {
+    const crypto = require('crypto');
+    return new Uint8Array(crypto.randomBytes(size));
+  }),
+  digestStringAsync: jest.fn(async (_algo: string, data: string) => {
+    const crypto = require('crypto');
+    return crypto.createHash('sha256').update(data).digest('hex');
+  }),
+  CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
+}));
+
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 
@@ -56,11 +68,15 @@ describe('OAuthMobileAdapter', () => {
     expect(code).toBeNull();
   });
 
-  it('generates PKCE code verifier and challenge', () => {
-    const { codeVerifier, codeChallenge } = adapter.generatePKCE();
+  it('generates PKCE code verifier and challenge', async () => {
+    const { codeVerifier, codeChallenge } = await adapter.generatePKCE();
     expect(codeVerifier).toBeDefined();
     expect(codeVerifier.length).toBeGreaterThanOrEqual(43);
     expect(codeChallenge).toBeDefined();
     expect(codeChallenge.length).toBeGreaterThan(0);
+  });
+
+  it('exposes redirectUri as a public getter', () => {
+    expect(adapter.redirectUri).toBe('pi-ai-rn://oauth/callback');
   });
 });

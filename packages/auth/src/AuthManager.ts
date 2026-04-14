@@ -11,7 +11,6 @@ const PROVIDERS: OAuthProviderConfig[] = [
   googleGeminiProvider, googleAntigravityProvider,
 ];
 
-const REDIRECT_URI = 'pi-ai-rn://oauth/callback';
 const DEVICE_CODE_MAX_POLLS = 60; // ~5 minutes at 5s intervals
 
 export class AuthManager {
@@ -57,7 +56,7 @@ export class AuthManager {
       return this.loginDeviceCode(provider);
     }
 
-    const { codeVerifier, codeChallenge } = this.oauth.generatePKCE();
+    const { codeVerifier, codeChallenge } = await this.oauth.generatePKCE();
     const authUrl = this.oauth.buildAuthUrl({
       authorizeEndpoint: provider.authorizeEndpoint,
       clientId: provider.clientId,
@@ -90,12 +89,11 @@ export class AuthManager {
   private async exchangeCode(
     provider: OAuthProviderConfig, code: string, codeVerifier: string,
   ): Promise<TokenResponse> {
-    const redirectUri = REDIRECT_URI;
     const res = await fetch(provider.tokenEndpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        grant_type: 'authorization_code', code, redirect_uri: redirectUri,
+        grant_type: 'authorization_code', code, redirect_uri: this.oauth.redirectUri,
         client_id: provider.clientId, code_verifier: codeVerifier,
       }).toString(),
     });

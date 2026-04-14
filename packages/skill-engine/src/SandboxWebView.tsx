@@ -1,4 +1,4 @@
-import React, { useRef, useImperativeHandle, forwardRef, useCallback } from 'react';
+import React, { useRef, useImperativeHandle, forwardRef, useCallback, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import type { BridgeMessage } from './types';
@@ -15,11 +15,24 @@ interface SandboxWebViewProps {
   onToolResult: (requestId: string, result: { success: boolean; data?: unknown; error?: string }) => void;
 }
 
-const SANDBOX_HTML = `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><script>${BRIDGE_RUNTIME_JS}</script></body></html>`;
+// Lazily built to avoid computing at module scope (safe for React Native)
+let _sandboxHtml: string | null = null;
+function getSandboxHtml(): string {
+  if (!_sandboxHtml) {
+    _sandboxHtml = `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><script>${BRIDGE_RUNTIME_JS}</script></body></html>`;
+  }
+  return _sandboxHtml;
+}
 
 export const SandboxWebView = forwardRef<SandboxWebViewRef, SandboxWebViewProps>(
   function SandboxWebView({ onBridgeMessage, onToolResult }, ref) {
     const webViewRef = useRef<WebView>(null);
+
+    // Use refs for callbacks to prevent unnecessary WebView re-renders
+    const onBridgeMessageRef = useRef(onBridgeMessage);
+    const onToolResultRef = useRef(onToolResult);
+    useEffect(() => { onBridgeMessageRef.current = onBridgeMessage; }, [onBridgeMessage]);
+    useEffect(() => { onToolResultRef.current = onToolResult; }, [onToolResult]);
 
     const sendMessage = useCallback((data: unknown) => {
       webViewRef.current?.injectJavaScript(
@@ -57,19 +70,19 @@ export const SandboxWebView = forwardRef<SandboxWebViewRef, SandboxWebViewProps>
         }
 
         if (data.type === 'tool-result' || data.type === 'tool-error') {
-          onToolResult(data.id, data.payload);
+          onToolResultRef.current(data.id, data.payload);
         } else {
-          onBridgeMessage(data as BridgeMessage);
+          onBridgeMessageRef.current(data as BridgeMessage);
         }
       },
-      [onBridgeMessage, onToolResult],
+      [], // stable reference — no dependency on props
     );
 
     return (
       <View style={styles.hidden}>
         <WebView
           ref={webViewRef}
-          source={{ html: SANDBOX_HTML }}
+          source={{ html: getSandboxHtml() }}
           onMessage={handleMessage}
           javaScriptEnabled
           originWhitelist={['*']}

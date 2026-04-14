@@ -1,7 +1,13 @@
-export class SqliteProxy {
-  private db: any;
+export interface SQLiteDatabase {
+  execSync(sql: string): void;
+  runSync(sql: string, ...params: unknown[]): void;
+  getAllSync(sql: string, ...params: unknown[]): Record<string, unknown>[];
+}
 
-  constructor(db: any) {
+export class SqliteProxy {
+  private db: SQLiteDatabase;
+
+  constructor(db: SQLiteDatabase) {
     this.db = db;
   }
 
