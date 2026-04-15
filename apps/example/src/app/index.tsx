@@ -8,7 +8,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
-  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -112,7 +111,15 @@ export default function ChatScreen() {
     async (text: string) => {
       if (isStreaming) return;
       if (!activeProvider) {
-        Alert.alert('Not signed in', 'Go to Settings to connect a provider.');
+        setMessages((prev) => [
+          ...prev,
+          { id: `u-${Date.now()}`, role: 'user', content: text },
+          {
+            id: `e-${Date.now()}`,
+            role: 'assistant',
+            content: 'No provider connected. Tap the gear icon to sign in or add an API key.',
+          },
+        ]);
         return;
       }
 
@@ -176,14 +183,26 @@ export default function ChatScreen() {
               );
             },
             onError: (error) => {
-              Alert.alert('Error', error);
-              setMessages((prev) => prev.filter((m) => m.id !== streamingId));
+              // Show error inline as an assistant message instead of alert
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === streamingId
+                    ? { ...m, content: `Something went wrong: ${error}`, isStreaming: false }
+                    : m,
+                ),
+              );
             },
           },
         );
       } catch (e: any) {
-        Alert.alert('Error', e.message ?? String(e));
-        setMessages((prev) => prev.filter((m) => m.id !== streamingId));
+        const errorMsg = e.message ?? String(e);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === streamingId
+              ? { ...m, content: `Something went wrong: ${errorMsg}`, isStreaming: false }
+              : m,
+          ),
+        );
       } finally {
         setIsStreaming(false);
         setActiveToolCall(null);

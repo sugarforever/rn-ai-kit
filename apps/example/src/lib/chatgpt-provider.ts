@@ -173,7 +173,15 @@ export async function streamChatGPT(options: ChatGPTStreamOptions): Promise<Chat
   if (!response.ok) {
     const errorText = await response.text();
     console.error('[chatgpt] error', response.status, errorText);
-    throw new Error(`ChatGPT API error ${response.status}: ${errorText}`);
+    // Parse the error body for a friendly message
+    let message: string;
+    try {
+      const parsed = JSON.parse(errorText);
+      message = parsed.detail || parsed.error?.message || parsed.message || errorText;
+    } catch {
+      message = errorText;
+    }
+    throw new Error(message);
   }
 
   let fullText = '';
