@@ -1,3 +1,4 @@
+import * as Crypto from 'expo-crypto';
 import { SecureStoreBackend, type StoredCredential } from './SecureStoreBackend';
 import { OAuthMobileAdapter } from './OAuthMobileAdapter';
 import {
@@ -12,6 +13,11 @@ const PROVIDERS: OAuthProviderConfig[] = [
 ];
 
 const DEVICE_CODE_MAX_POLLS = 60; // ~5 minutes at 5s intervals
+
+function generateRandomHex(byteLength: number): string {
+  const bytes = Crypto.getRandomBytes(byteLength);
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 export class AuthManager {
   private backend: SecureStoreBackend;
@@ -69,19 +75,27 @@ export class AuthManager {
     }
 
     const { codeVerifier, codeChallenge } = await this.oauth.generatePKCE();
+
+    // Generate state parameter — required by most providers.
+    // Anthropic uses the verifier as state; others use a random string.
+    const state = provider.id === 'anthropic'
+      ? codeVerifier
+      : generateRandomHex(16);
+
     const authUrl = this.oauth.buildAuthUrl({
       authorizeEndpoint: provider.authorizeEndpoint,
       redirectUri: provider.redirectUri,
       clientId: provider.clientId,
       scopes: provider.scopes,
       codeChallenge,
+      state,
       extraParams: provider.extraAuthParams,
     });
 
     const code = await this.oauth.authorize(authUrl, provider.redirectUri, onNeedManualCode);
     if (!code) return false;
 
-    const tokens = await this.exchangeCode(provider, code, codeVerifier);
+    const tokens = await this.exchangeCode(provider, code, codeVerifier, state);
     const expiresAt = tokens.expires_in
       ? new Date(Date.now() + tokens.expires_in * 1000).toISOString()
       : null;
@@ -101,17 +115,31 @@ export class AuthManager {
   }
 
   private async exchangeCode(
-    provider: OAuthProviderConfig, code: string, codeVerifier: string,
+    provider: OAuthProviderConfig, code: string, codeVerifier: string, state?: string,
   ): Promise<TokenResponse> {
+    const params: Record<string, string> = {
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: provider.redirectUri,
+      client_id: provider.clientId,
+      code_verifier: codeVerifier,
+    };
+    // Anthropic requires state in the token exchange
+    if (state) params.state = state;
+
+    // Anthropic uses JSON body; others use form-urlencoded
+    const isJson = provider.id === 'anthropic';
     const res = await fetch(provider.tokenEndpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code', code, redirect_uri: provider.redirectUri,
-        client_id: provider.clientId, code_verifier: codeVerifier,
-      }).toString(),
+      headers: {
+        'Content-Type': isJson ? 'application/json' : 'application/x-www-form-urlencoded',
+      },
+      body: isJson ? JSON.stringify(params) : new URLSearchParams(params).toString(),
     });
-    if (!res.ok) throw new Error(`Token exchange failed: ${res.status}`);
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Token exchange failed: ${res.status} ${errorText}`);
+    }
     return res.json();
   }
 
