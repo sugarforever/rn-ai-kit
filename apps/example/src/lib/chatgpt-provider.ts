@@ -27,54 +27,6 @@ function extractAccountId(token: string): string {
   return accountId;
 }
 
-/**
- * Build the request body for the ChatGPT Responses API.
- */
-function buildRequestBody(
-  modelId: string,
-  messages: Array<{ role: string; content: string }>,
-  tools?: Array<{ name: string; description: string; parameters: any }>,
-) {
-  // Convert chat messages to Responses API "input" format
-  const input: any[] = [];
-  let systemPrompt: string | undefined;
-
-  for (const msg of messages) {
-    if (msg.role === 'system') {
-      systemPrompt = msg.content;
-    } else if (msg.role === 'user') {
-      input.push({ type: 'message', role: 'user', content: [{ type: 'input_text', text: msg.content }] });
-    } else if (msg.role === 'assistant') {
-      input.push({ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: msg.content }] });
-    }
-  }
-
-  const body: any = {
-    model: modelId,
-    store: false,
-    stream: true,
-    input,
-    text: { verbosity: 'medium' },
-    tool_choice: 'auto',
-    parallel_tool_calls: true,
-  };
-
-  if (systemPrompt) {
-    body.instructions = systemPrompt;
-  }
-
-  if (tools && tools.length > 0) {
-    body.tools = tools.map((t) => ({
-      type: 'function',
-      name: t.name,
-      description: t.description,
-      parameters: t.parameters,
-      strict: null,
-    }));
-  }
-
-  return body;
-}
 
 /**
  * Parse SSE events from a ReadableStream.
@@ -116,7 +68,10 @@ async function* parseSSE(response: Response): AsyncGenerator<any> {
 export interface ChatGPTStreamOptions {
   apiKey: string;
   modelId: string;
-  messages: Array<{ role: string; content: string }>;
+  /** Responses API input items (messages, function_call, function_call_output) */
+  messages: any[];
+  /** System prompt — sent as `instructions` field */
+  systemPrompt?: string;
   tools?: Array<{ name: string; description: string; parameters: any }>;
   baseUrl?: string;
   onTextDelta?: (text: string) => void;
@@ -140,6 +95,7 @@ export async function streamChatGPT(options: ChatGPTStreamOptions): Promise<Chat
     apiKey,
     modelId,
     messages,
+    systemPrompt,
     tools,
     baseUrl = DEFAULT_BASE_URL,
     onTextDelta,
@@ -149,7 +105,27 @@ export async function streamChatGPT(options: ChatGPTStreamOptions): Promise<Chat
   } = options;
 
   const accountId = extractAccountId(apiKey);
-  const body = buildRequestBody(modelId, messages, tools);
+
+  // Build request body — input is passed directly (already in Responses API format)
+  const body: any = {
+    model: modelId,
+    store: false,
+    stream: true,
+    input: messages,
+    text: { verbosity: 'medium' },
+    tool_choice: 'auto',
+    parallel_tool_calls: true,
+  };
+  if (systemPrompt) body.instructions = systemPrompt;
+  if (tools && tools.length > 0) {
+    body.tools = tools.map((t) => ({
+      type: 'function',
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters,
+      strict: null,
+    }));
+  }
   const url = `${baseUrl.replace(/\/+$/, '')}/codex/responses`;
 
   const headers: Record<string, string> = {

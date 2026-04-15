@@ -95,15 +95,17 @@ async function sendMessageChatGPT(
   const systemPrompt = skillId ? skillEngine.getSystemPrompt(skillId) : undefined;
   const toolDefs = skillId ? buildToolDefs(skillId) : [];
 
-  // Build simple message array
-  const messages: Array<{ role: string; content: string }> = [];
-  if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
+  // Build message array — the Responses API uses a mix of message objects
+  // and typed items (function_call, function_call_output) in the input array.
+  const messages: any[] = [];
   for (const m of history) {
-    if (m.role === 'user' || m.role === 'assistant') {
-      messages.push({ role: m.role, content: m.content });
+    if (m.role === 'user') {
+      messages.push({ type: 'message', role: 'user', content: [{ type: 'input_text', text: m.content }] });
+    } else if (m.role === 'assistant') {
+      messages.push({ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: m.content }] });
     }
   }
-  messages.push({ role: 'user', content: userText });
+  messages.push({ type: 'message', role: 'user', content: [{ type: 'input_text', text: userText }] });
 
   const tools = toolDefs.length > 0
     ? toolDefs.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters }))
@@ -120,6 +122,7 @@ async function sendMessageChatGPT(
         apiKey,
         modelId,
         messages,
+        systemPrompt,
         tools,
         onTextDelta: (text) => callbacks.onTextDelta(text),
         onToolCall: (tc) => callbacks.onToolCallStart(tc.name),
@@ -132,7 +135,7 @@ async function sendMessageChatGPT(
           role: 'assistant',
           content: result.text,
         });
-        messages.push({ role: 'assistant', content: result.text });
+        messages.push({ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: result.text }] });
       }
 
       // No tool calls — done
@@ -141,7 +144,7 @@ async function sendMessageChatGPT(
         return newMessages;
       }
 
-      // Execute tool calls
+      // Execute tool calls and add results in Responses API format
       for (const tc of result.toolCalls) {
         console.log('[chat:chatgpt] executing tool', tc.name, tc.arguments);
         let execResult: { success: boolean; data?: unknown; error?: string };
@@ -151,7 +154,7 @@ async function sendMessageChatGPT(
         } else {
           execResult = { success: false, error: 'No skill loaded' };
         }
-        console.log('[chat:chatgpt] tool result', tc.name, execResult.success, execResult.error);
+        console.log('[chat:chatgpt] tool result', tc.name, JSON.stringify(execResult).slice(0, 200));
 
         const resultText = JSON.stringify(
           execResult.success ? execResult.data : { error: execResult.error },
@@ -165,9 +168,19 @@ async function sendMessageChatGPT(
           toolName: tc.name,
         });
 
-        // Add tool result to messages for next turn
-        // ChatGPT Responses API expects function_call_output items
-        messages.push({ role: 'tool', content: resultText });
+        // Add the function call + output to the input for the next turn
+        // This is the Responses API format — NOT a chat message
+        messages.push({
+          type: 'function_call',
+          call_id: tc.id,
+          name: tc.name,
+          arguments: typeof tc.arguments === 'string' ? tc.arguments : JSON.stringify(tc.arguments),
+        });
+        messages.push({
+          type: 'function_call_output',
+          call_id: tc.id,
+          output: resultText,
+        });
       }
     } catch (e: any) {
       console.error('[chat:chatgpt] error', e);
