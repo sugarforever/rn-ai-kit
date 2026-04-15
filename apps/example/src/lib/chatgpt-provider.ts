@@ -1,0 +1,250 @@
+/**
+ * Custom ChatGPT Backend Provider for Vercel AI SDK.
+ *
+ * ChatGPT subscription OAuth tokens (from auth.openai.com) target the
+ * ChatGPT backend API (chatgpt.com/backend-api/codex/responses), NOT
+ * the standard OpenAI platform API (api.openai.com/v1).
+ *
+ * This provider implements the Vercel AI SDK's LanguageModelV1 interface
+ * to stream responses from the ChatGPT backend using SSE.
+ *
+ * Based on pi-ai's openai-codex-responses provider.
+ */
+
+const DEFAULT_BASE_URL = 'https://chatgpt.com/backend-api';
+const JWT_CLAIM_PATH = 'https://api.openai.com/auth';
+
+/**
+ * Extract chatgpt_account_id from the JWT token.
+ */
+function extractAccountId(token: string): string {
+  const parts = token.split('.');
+  if (parts.length !== 3) throw new Error('Invalid JWT token');
+  const payload = JSON.parse(atob(parts[1]));
+  const accountId = payload?.[JWT_CLAIM_PATH]?.chatgpt_account_id;
+  if (!accountId) throw new Error('No chatgpt_account_id in token');
+  return accountId;
+}
+
+/**
+ * Build the request body for the ChatGPT Responses API.
+ */
+function buildRequestBody(
+  modelId: string,
+  messages: Array<{ role: string; content: string }>,
+  tools?: Array<{ name: string; description: string; parameters: any }>,
+) {
+  // Convert chat messages to Responses API "input" format
+  const input: any[] = [];
+  let systemPrompt: string | undefined;
+
+  for (const msg of messages) {
+    if (msg.role === 'system') {
+      systemPrompt = msg.content;
+    } else if (msg.role === 'user') {
+      input.push({ type: 'message', role: 'user', content: [{ type: 'input_text', text: msg.content }] });
+    } else if (msg.role === 'assistant') {
+      input.push({ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: msg.content }] });
+    }
+  }
+
+  const body: any = {
+    model: modelId,
+    store: false,
+    stream: true,
+    input,
+    text: { verbosity: 'medium' },
+    tool_choice: 'auto',
+    parallel_tool_calls: true,
+  };
+
+  if (systemPrompt) {
+    body.instructions = systemPrompt;
+  }
+
+  if (tools && tools.length > 0) {
+    body.tools = tools.map((t) => ({
+      type: 'function',
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters,
+      strict: null,
+    }));
+  }
+
+  return body;
+}
+
+/**
+ * Parse SSE events from a ReadableStream.
+ */
+async function* parseSSE(response: Response): AsyncGenerator<any> {
+  if (!response.body) return;
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let idx = buffer.indexOf('\n\n');
+    while (idx !== -1) {
+      const chunk = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 2);
+
+      const dataLines = chunk
+        .split('\n')
+        .filter((l) => l.startsWith('data:'))
+        .map((l) => l.slice(5).trim());
+
+      if (dataLines.length > 0) {
+        const data = dataLines.join('\n').trim();
+        if (data && data !== '[DONE]') {
+          try {
+            yield JSON.parse(data);
+          } catch {}
+        }
+      }
+      idx = buffer.indexOf('\n\n');
+    }
+  }
+}
+
+export interface ChatGPTStreamOptions {
+  apiKey: string;
+  modelId: string;
+  messages: Array<{ role: string; content: string }>;
+  tools?: Array<{ name: string; description: string; parameters: any }>;
+  baseUrl?: string;
+  onTextDelta?: (text: string) => void;
+  onToolCall?: (toolCall: { id: string; name: string; arguments: string }) => void;
+  onError?: (error: string) => void;
+  signal?: AbortSignal;
+}
+
+export interface ChatGPTStreamResult {
+  text: string;
+  toolCalls: Array<{ id: string; name: string; arguments: string }>;
+  finishReason: 'stop' | 'tool-calls' | 'error';
+}
+
+/**
+ * Stream a response from the ChatGPT backend API.
+ * Returns the full text and any tool calls.
+ */
+export async function streamChatGPT(options: ChatGPTStreamOptions): Promise<ChatGPTStreamResult> {
+  const {
+    apiKey,
+    modelId,
+    messages,
+    tools,
+    baseUrl = DEFAULT_BASE_URL,
+    onTextDelta,
+    onToolCall,
+    onError,
+    signal,
+  } = options;
+
+  const accountId = extractAccountId(apiKey);
+  const body = buildRequestBody(modelId, messages, tools);
+  const url = `${baseUrl.replace(/\/+$/, '')}/codex/responses`;
+
+  const headers: Record<string, string> = {
+    'Authorization': `Bearer ${apiKey}`,
+    'chatgpt-account-id': accountId,
+    'OpenAI-Beta': 'responses=experimental',
+    'originator': 'pi-ai-rn',
+    'User-Agent': 'pi-ai-rn (mobile)',
+    'Accept': 'text/event-stream',
+    'Content-Type': 'application/json',
+  };
+
+  console.log('[chatgpt] POST', url, { model: modelId });
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+    signal,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('[chatgpt] error', response.status, errorText);
+    throw new Error(`ChatGPT API error ${response.status}: ${errorText}`);
+  }
+
+  let fullText = '';
+  const toolCalls: Array<{ id: string; name: string; arguments: string }> = {};
+  // Track tool calls being built (partial arguments arrive incrementally)
+  const pendingToolCalls = new Map<number, { id: string; name: string; args: string }>();
+  let finishReason: 'stop' | 'tool-calls' | 'error' = 'stop';
+
+  for await (const event of parseSSE(response)) {
+    const type = event.type;
+
+    if (type === 'error' || type === 'response.failed') {
+      const msg = event.message || event.response?.error?.message || JSON.stringify(event);
+      throw new Error(msg);
+    }
+
+    // Text delta
+    if (type === 'response.output_text.delta') {
+      const delta = event.delta ?? '';
+      fullText += delta;
+      onTextDelta?.(delta);
+    }
+
+    // Tool call function starts
+    if (type === 'response.output_item.added' && event.item?.type === 'function_call') {
+      const item = event.item;
+      pendingToolCalls.set(event.output_index, {
+        id: item.call_id || item.id || `call-${Date.now()}`,
+        name: item.name || '',
+        args: '',
+      });
+    }
+
+    // Tool call function name (if sent separately)
+    if (type === 'response.function_call_arguments.delta') {
+      const tc = pendingToolCalls.get(event.output_index);
+      if (tc) {
+        tc.args += event.delta ?? '';
+      }
+    }
+
+    // Tool call complete
+    if (type === 'response.output_item.done' && event.item?.type === 'function_call') {
+      const item = event.item;
+      const tc = pendingToolCalls.get(event.output_index) || {
+        id: item.call_id || item.id || `call-${Date.now()}`,
+        name: item.name || '',
+        args: item.arguments || '',
+      };
+      // Use final values from the done event if available
+      if (item.name) tc.name = item.name;
+      if (item.arguments) tc.args = item.arguments;
+      if (item.call_id) tc.id = item.call_id;
+
+      toolCalls.push({ id: tc.id, name: tc.name, arguments: tc.args });
+      onToolCall?.(toolCalls[toolCalls.length - 1]);
+      pendingToolCalls.delete(event.output_index);
+    }
+
+    // Response completed
+    if (type === 'response.completed' || type === 'response.done') {
+      const status = event.response?.status;
+      if (status === 'incomplete' || toolCalls.length > 0) {
+        finishReason = 'tool-calls';
+      }
+    }
+  }
+
+  if (toolCalls.length > 0) {
+    finishReason = 'tool-calls';
+  }
+
+  return { text: fullText, toolCalls, finishReason };
+}
