@@ -23,10 +23,12 @@ import * as FileSystem from 'expo-file-system';
 
 // Default models per provider — a real app would let the user pick
 const DEFAULT_MODELS: Record<string, string> = {
-  'anthropic': 'claude-sonnet-4-20250514',
-  'openai-codex': 'gpt-4o',
-  'google-gemini': 'gemini-2.0-flash',
+  'anthropic': 'claude-sonnet-4-6',
+  'openai-codex': 'gpt-5.4',           // ChatGPT backend (OAuth subscription)
+  'openai': 'gpt-4o',                   // Standard OpenAI API key
+  'google-gemini': 'gemini-3-flash',
   'github-copilot': 'gpt-4o',
+  'google-antigravity': 'claude-sonnet-4-6',
 };
 const SKILL_ID = 'hn-copilot';
 
