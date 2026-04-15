@@ -1,12 +1,8 @@
-import { stream } from '@mariozechner/pi-ai';
-import type {
-  AssistantMessageEvent,
-  AssistantMessage,
-  Message,
-  Tool,
-  ToolCall,
-  Context,
-} from '@mariozechner/pi-ai';
+import { streamText, type ModelMessage, type ToolCallPart, tool } from 'ai';
+import { createAnthropic } from '@ai-sdk/anthropic';
+import { createOpenAI } from '@ai-sdk/openai';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { z } from 'zod';
 import { authManager } from './auth';
 import { skillEngine } from './skills';
 
@@ -27,6 +23,73 @@ interface StreamCallbacks {
 }
 
 /**
+ * Create a Vercel AI SDK model instance from provider ID + API key.
+ */
+function createModel(providerId: string, modelId: string, apiKey: string) {
+  switch (providerId) {
+    case 'anthropic': {
+      const anthropic = createAnthropic({ apiKey });
+      return anthropic(modelId);
+    }
+    case 'openai-codex':
+    case 'openai': {
+      const openai = createOpenAI({ apiKey });
+      return openai(modelId);
+    }
+    case 'google-gemini':
+    case 'google': {
+      const google = createGoogleGenerativeAI({ apiKey });
+      return google(modelId);
+    }
+    default: {
+      // Fallback: treat as OpenAI-compatible endpoint
+      const openai = createOpenAI({ apiKey });
+      return openai(modelId);
+    }
+  }
+}
+
+/**
+ * Convert skill tool definitions to Vercel AI SDK tool format.
+ * Note: execute is NOT included here — tool calls are handled manually
+ * because execution happens in the WebView sandbox, not in JS.
+ */
+function buildTools(skillId: string) {
+  const defs = skillEngine.getToolDefinitions(skillId);
+  const tools: Record<string, ReturnType<typeof tool>> = {};
+
+  for (const def of defs) {
+    // Convert JSONSchema properties to a simple zod object schema
+    const props: Record<string, z.ZodType> = {};
+    if (def.parameters.properties) {
+      for (const [key, schema] of Object.entries(def.parameters.properties)) {
+        switch (schema.type) {
+          case 'string':
+            props[key] = z.string().optional().describe(schema.description ?? '');
+            break;
+          case 'number':
+            props[key] = z.number().optional().describe(schema.description ?? '');
+            break;
+          case 'boolean':
+            props[key] = z.boolean().optional().describe(schema.description ?? '');
+            break;
+          default:
+            props[key] = z.any().optional();
+        }
+      }
+    }
+
+    tools[def.name] = tool({
+      description: def.description,
+      inputSchema: z.object(props),
+      // No execute — we handle tool execution manually via SkillEngine
+    });
+  }
+
+  return tools;
+}
+
+/**
  * Send a user message and stream the response.
  * Handles multi-turn tool call loops automatically.
  */
@@ -44,64 +107,50 @@ export async function sendMessage(
     return [];
   }
 
-  // Build pi-ai context
+  const model = createModel(providerId, modelId, apiKey);
   const systemPrompt = skillId ? skillEngine.getSystemPrompt(skillId) : undefined;
-  const tools: Tool[] = skillId
-    ? skillEngine.getToolDefinitions(skillId).map((t) => ({
-        name: t.name,
-        description: t.description,
-        parameters: t.parameters as any,
-      }))
-    : [];
+  const tools = skillId ? buildTools(skillId) : {};
 
-  // Convert our ChatMessages to pi-ai Messages
-  const piMessages: Message[] = history
-    .filter((m) => m.role === 'user' || m.role === 'assistant')
-    .map((m) => {
-      if (m.role === 'user') {
-        return { role: 'user' as const, content: m.content, timestamp: Date.now() };
-      }
-      return {
-        role: 'assistant' as const,
-        content: [{ type: 'text' as const, text: m.content }],
-        timestamp: Date.now(),
-      };
-    });
-
-  // Add the new user message
-  piMessages.push({ role: 'user', content: userText, timestamp: Date.now() });
+  // Build message history
+  const messages: ModelMessage[] = [];
+  if (systemPrompt) {
+    messages.push({ role: 'system', content: systemPrompt });
+  }
+  for (const m of history) {
+    if (m.role === 'user') {
+      messages.push({ role: 'user', content: m.content });
+    } else if (m.role === 'assistant') {
+      messages.push({ role: 'assistant', content: m.content });
+    }
+  }
+  messages.push({ role: 'user', content: userText });
 
   const newMessages: ChatMessage[] = [];
   const maxSteps = 8;
 
   for (let step = 0; step < maxSteps; step++) {
-    const context: Context = {
-      systemPrompt,
-      messages: piMessages,
-      tools: tools.length > 0 ? tools : undefined,
-    };
-
-    // Create a model reference
-    const { getModel } = await import('@mariozechner/pi-ai');
-    const model = getModel(providerId, modelId, apiKey);
-
     let fullText = '';
-    const toolCalls: ToolCall[] = [];
+    let toolCallParts: ToolCallPart[] = [];
 
     try {
-      const s = stream(model, context);
-      for await (const event of s) {
-        switch (event.type) {
-          case 'text_delta':
-            fullText += event.delta;
-            callbacks.onTextDelta(event.delta);
-            break;
-          case 'toolcall_end':
-            toolCalls.push(event.toolCall);
-            break;
-          case 'error':
-            callbacks.onError(String(event.error));
-            return newMessages;
+      const result = streamText({
+        model,
+        messages,
+        tools: Object.keys(tools).length > 0 ? tools : undefined,
+      });
+
+      for await (const chunk of result.fullStream) {
+        if (chunk.type === 'text-delta') {
+          fullText += chunk.textDelta;
+          callbacks.onTextDelta(chunk.textDelta);
+        }
+        if (chunk.type === 'tool-call') {
+          toolCallParts.push({
+            type: 'tool-call',
+            toolCallId: chunk.toolCallId,
+            toolName: chunk.toolName,
+            args: chunk.args,
+          });
         }
       }
     } catch (e: any) {
@@ -109,7 +158,7 @@ export async function sendMessage(
       return newMessages;
     }
 
-    // Add assistant message
+    // Add assistant message to history and results
     if (fullText) {
       const assistantMsg: ChatMessage = {
         id: `a-${Date.now()}-${step}`,
@@ -117,55 +166,56 @@ export async function sendMessage(
         content: fullText,
       };
       newMessages.push(assistantMsg);
-      piMessages.push({
-        role: 'assistant',
-        content: [{ type: 'text', text: fullText }],
-        timestamp: Date.now(),
-      });
+    }
+
+    // Add the full assistant response (text + tool calls) to message history
+    if (fullText || toolCallParts.length > 0) {
+      const content: any[] = [];
+      if (fullText) content.push({ type: 'text', text: fullText });
+      content.push(...toolCallParts);
+      messages.push({ role: 'assistant', content });
     }
 
     // No tool calls — done
-    if (toolCalls.length === 0) {
+    if (toolCallParts.length === 0) {
       callbacks.onDone(fullText);
       return newMessages;
     }
 
-    // Execute tool calls
-    for (const tc of toolCalls) {
-      callbacks.onToolCallStart(tc.name);
+    // Execute tool calls via SkillEngine sandbox
+    const toolResultContent: any[] = [];
+
+    for (const tc of toolCallParts) {
+      callbacks.onToolCallStart(tc.toolName);
 
       let result: { success: boolean; data?: unknown; error?: string };
       if (skillId) {
-        result = await skillEngine.executeTool(
-          skillId,
-          tc.name,
-          typeof tc.arguments === 'string' ? JSON.parse(tc.arguments) : tc.arguments,
-        );
+        result = await skillEngine.executeTool(skillId, tc.toolName, tc.args as Record<string, unknown>);
       } else {
         result = { success: false, error: 'No skill loaded' };
       }
 
       const resultText = JSON.stringify(result.success ? result.data : { error: result.error });
-      callbacks.onToolCallEnd(tc.name, resultText);
+      callbacks.onToolCallEnd(tc.toolName, resultText);
 
       const toolMsg: ChatMessage = {
-        id: `t-${Date.now()}-${tc.name}`,
+        id: `t-${Date.now()}-${tc.toolName}`,
         role: 'tool',
         content: resultText,
-        toolName: tc.name,
+        toolName: tc.toolName,
       };
       newMessages.push(toolMsg);
 
-      // Add tool result to pi-ai conversation
-      piMessages.push({
-        role: 'toolResult' as any,
-        toolCallId: tc.id,
-        toolName: tc.name,
-        content: [{ type: 'text', text: resultText }],
-        isError: !result.success,
-        timestamp: Date.now(),
+      toolResultContent.push({
+        type: 'tool-result',
+        toolCallId: tc.toolCallId,
+        toolName: tc.toolName,
+        result: resultText,
       });
     }
+
+    // Add tool results to message history
+    messages.push({ role: 'tool', content: toolResultContent });
 
     // Continue loop — model will see tool results
   }

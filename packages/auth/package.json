@@ -8,9 +8,6 @@
     "test": "jest",
     "typecheck": "tsc --noEmit"
   },
-  "peerDependencies": {
-    "@mariozechner/pi-ai": ">=0.67.0"
-  },
   "dependencies": {
     "expo-linking": "~55.0.13",
     "expo-secure-store": "~55.0.13",
