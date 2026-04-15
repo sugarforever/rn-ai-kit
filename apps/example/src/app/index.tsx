@@ -15,24 +15,45 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MessageBubble } from '../components/MessageBubble';
 import { ChatInput } from '../components/ChatInput';
 import { sendMessage, type ChatMessage } from '../lib/chat';
+import { authManager } from '../lib/auth';
 import { skillEngine } from '../lib/skills';
 import { SandboxWebView, type SandboxWebViewRef, BridgeHost } from '@pi-ai-rn/skill-engine';
 import { openDatabaseSync } from 'expo-sqlite';
 import * as FileSystem from 'expo-file-system';
 
-// Hardcoded defaults — a real app would let the user pick these
-const DEFAULT_PROVIDER = 'anthropic';
-const DEFAULT_MODEL = 'claude-sonnet-4-20250514';
+// Default models per provider — a real app would let the user pick
+const DEFAULT_MODELS: Record<string, string> = {
+  'anthropic': 'claude-sonnet-4-20250514',
+  'openai-codex': 'gpt-4o',
+  'google-gemini': 'gemini-2.0-flash',
+  'github-copilot': 'gpt-4o',
+};
 const SKILL_ID = 'hn-copilot';
 
 export default function ChatScreen() {
   const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [activeProvider, setActiveProvider] = useState<{ id: string; model: string } | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [activeToolCall, setActiveToolCall] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const sandboxRef = useRef<SandboxWebViewRef>(null);
   const bridgeRef = useRef<BridgeHost | null>(null);
+
+  // Detect which provider is connected
+  useEffect(() => {
+    (async () => {
+      const providers = authManager.listProviders();
+      for (const p of providers) {
+        const key = await authManager.getApiKey(p.id);
+        if (key) {
+          setActiveProvider({ id: p.id, model: DEFAULT_MODELS[p.id] ?? 'gpt-4o' });
+          return;
+        }
+      }
+      setActiveProvider(null);
+    })();
+  }, [messages.length === 0]); // re-check when navigating back from settings
 
   // Set up sandbox bridge + executor
   useEffect(() => {
@@ -88,6 +109,10 @@ export default function ChatScreen() {
   const handleSend = useCallback(
     async (text: string) => {
       if (isStreaming) return;
+      if (!activeProvider) {
+        Alert.alert('Not signed in', 'Go to Settings to connect a provider.');
+        return;
+      }
 
       // Add user message immediately
       const userMsg: ChatMessage = {
@@ -112,8 +137,8 @@ export default function ChatScreen() {
           text,
           [...messages, userMsg],
           SKILL_ID,
-          DEFAULT_PROVIDER,
-          DEFAULT_MODEL,
+          activeProvider.id,
+          activeProvider.model,
           {
             onTextDelta: (delta) => {
               streamedText += delta;
@@ -162,7 +187,7 @@ export default function ChatScreen() {
         setActiveToolCall(null);
       }
     },
-    [messages, isStreaming],
+    [messages, isStreaming, activeProvider],
   );
 
   return (
