@@ -1,8 +1,7 @@
-import { streamText, type ModelMessage, type ToolCallPart, tool } from 'ai';
+import { streamText, jsonSchema, type ModelMessage, type ToolCallPart, tool } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { z } from 'zod';
 import { authManager } from './auth';
 import { skillEngine } from './skills';
 
@@ -54,38 +53,17 @@ function createModel(providerId: string, modelId: string, apiKey: string) {
 
 /**
  * Convert skill tool definitions to Vercel AI SDK tool format.
- * Note: execute is NOT included here — tool calls are handled manually
- * because execution happens in the WebView sandbox, not in JS.
+ * Uses jsonSchema() to pass raw JSON Schema directly — no Zod conversion.
+ * No execute function — tool calls are handled manually via SkillEngine.
  */
 function buildTools(skillId: string) {
   const defs = skillEngine.getToolDefinitions(skillId);
   const tools: Record<string, ReturnType<typeof tool>> = {};
 
   for (const def of defs) {
-    // Convert JSONSchema properties to a simple zod object schema
-    const props: Record<string, z.ZodType> = {};
-    if (def.parameters.properties) {
-      for (const [key, schema] of Object.entries(def.parameters.properties)) {
-        switch (schema.type) {
-          case 'string':
-            props[key] = z.string().optional().describe(schema.description ?? '');
-            break;
-          case 'number':
-            props[key] = z.number().optional().describe(schema.description ?? '');
-            break;
-          case 'boolean':
-            props[key] = z.boolean().optional().describe(schema.description ?? '');
-            break;
-          default:
-            props[key] = z.any().optional();
-        }
-      }
-    }
-
     tools[def.name] = tool({
       description: def.description,
-      inputSchema: z.object(props),
-      // No execute — we handle tool execution manually via SkillEngine
+      parameters: jsonSchema(def.parameters as any),
     });
   }
 
@@ -110,6 +88,7 @@ export async function sendMessage(
     return [];
   }
 
+  console.log('[chat] sendMessage', { providerId, modelId, apiKeyPrefix: apiKey.slice(0, 12) + '...' });
   const model = createModel(providerId, modelId, apiKey);
   const systemPrompt = skillId ? skillEngine.getSystemPrompt(skillId) : undefined;
   const tools = skillId ? buildTools(skillId) : {};
@@ -136,6 +115,7 @@ export async function sendMessage(
     let toolCallParts: ToolCallPart[] = [];
 
     try {
+      console.log('[chat] streamText step', step, { messageCount: messages.length });
       const result = streamText({
         model,
         messages,
@@ -143,6 +123,12 @@ export async function sendMessage(
       });
 
       for await (const chunk of result.fullStream) {
+        console.log('[chat] chunk', chunk.type, chunk.type === 'error' ? chunk : '');
+        if (chunk.type === 'error') {
+          console.error('[chat] stream error chunk', JSON.stringify(chunk, null, 2));
+          callbacks.onError(String((chunk as any).error?.message ?? (chunk as any).error ?? chunk));
+          return newMessages;
+        }
         if (chunk.type === 'text-delta') {
           fullText += chunk.textDelta;
           callbacks.onTextDelta(chunk.textDelta);
@@ -157,7 +143,8 @@ export async function sendMessage(
         }
       }
     } catch (e: any) {
-      callbacks.onError(e.message ?? 'Stream failed');
+      console.error('[chat] stream error', e);
+      callbacks.onError(e.message ?? String(e));
       return newMessages;
     }
 
