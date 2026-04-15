@@ -151,12 +151,10 @@ export default function ChatScreen() {
             onToolCallStart: (name) => setActiveToolCall(name),
             onToolCallEnd: (name, result) => {
               setActiveToolCall(null);
-              // Add tool result message
               setMessages((prev) => [
                 ...prev.filter((m) => m.id !== streamingId),
                 ...newMsgs.filter((m) => m.role !== 'assistant'),
               ]);
-              // Reset streaming for next assistant turn
               streamingId = `s-${Date.now()}`;
               streamedText = '';
               setMessages((prev) => [
@@ -165,7 +163,6 @@ export default function ChatScreen() {
               ]);
             },
             onDone: (fullText) => {
-              // Replace streaming placeholder with final message
               setMessages((prev) =>
                 prev
                   .filter((m) => m.id !== streamingId || fullText)
@@ -182,6 +179,9 @@ export default function ChatScreen() {
             },
           },
         );
+      } catch (e: any) {
+        Alert.alert('Error', e.message ?? String(e));
+        setMessages((prev) => prev.filter((m) => m.id !== streamingId));
       } finally {
         setIsStreaming(false);
         setActiveToolCall(null);

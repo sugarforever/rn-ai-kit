@@ -33,6 +33,9 @@ function createModel(providerId: string, modelId: string, apiKey: string) {
     }
     case 'openai-codex':
     case 'openai': {
+      // Note: ChatGPT subscription OAuth tokens (openai-codex) use a JWT
+      // that works with api.openai.com — OpenAI validates the token and
+      // routes to the user's subscription. Standard API keys also work.
       const openai = createOpenAI({ apiKey });
       return openai(modelId);
     }
