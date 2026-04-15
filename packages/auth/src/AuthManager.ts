@@ -124,8 +124,8 @@ export class AuthManager {
       client_id: provider.clientId,
       code_verifier: codeVerifier,
     };
-    // Anthropic requires state in the token exchange
-    if (state) params.state = state;
+    // Only Anthropic requires state in the token exchange
+    if (state && provider.id === 'anthropic') params.state = state;
 
     // Anthropic uses JSON body; others use form-urlencoded
     const isJson = provider.id === 'anthropic';
