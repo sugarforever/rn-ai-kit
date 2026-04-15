@@ -3,6 +3,7 @@ export interface OAuthProviderConfig {
   name: string;
   authorizeEndpoint: string;
   tokenEndpoint: string;
+  redirectUri: string;
   clientId: string;
   scopes: string[];
   flowType: 'pkce' | 'device-code';

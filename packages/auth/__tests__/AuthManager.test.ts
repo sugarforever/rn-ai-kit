@@ -41,7 +41,6 @@ const mockOAuth: jest.Mocked<OAuthMobileAdapter> = {
   buildAuthUrl: jest.fn(),
   authorize: jest.fn(),
   generatePKCE: jest.fn(),
-  redirectUri: 'pi-ai-rn://oauth/callback',
 } as any;
 
 global.fetch = jest.fn() as jest.Mock;

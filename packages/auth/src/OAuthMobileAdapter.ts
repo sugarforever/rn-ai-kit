@@ -1,11 +1,9 @@
 import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
 import * as Crypto from 'expo-crypto';
-
-const REDIRECT_PATH = 'oauth/callback';
 
 export interface AuthUrlParams {
   authorizeEndpoint: string;
+  redirectUri: string;
   clientId: string;
   scopes: string[];
   codeChallenge: string;
@@ -14,14 +12,10 @@ export interface AuthUrlParams {
 }
 
 export class OAuthMobileAdapter {
-  get redirectUri(): string {
-    return Linking.createURL(REDIRECT_PATH);
-  }
-
   buildAuthUrl(params: AuthUrlParams): string {
     const url = new URL(params.authorizeEndpoint);
     url.searchParams.set('client_id', params.clientId);
-    url.searchParams.set('redirect_uri', this.redirectUri);
+    url.searchParams.set('redirect_uri', params.redirectUri);
     url.searchParams.set('response_type', 'code');
     url.searchParams.set('scope', params.scopes.join(' '));
     url.searchParams.set('code_challenge', params.codeChallenge);
@@ -35,8 +29,13 @@ export class OAuthMobileAdapter {
     return url.toString();
   }
 
-  async authorize(authUrl: string): Promise<string | null> {
-    const result = await WebBrowser.openAuthSessionAsync(authUrl, this.redirectUri);
+  /**
+   * Open the auth URL in an in-app browser (ASWebAuthenticationSession on iOS).
+   * The session intercepts the redirect URI before it actually loads —
+   * this works with localhost, https, and custom scheme redirect URIs.
+   */
+  async authorize(authUrl: string, redirectUri: string): Promise<string | null> {
+    const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
     if (result.type !== 'success') return null;
     const url = new URL(result.url);
     return url.searchParams.get('code');

@@ -21,7 +21,6 @@ jest.mock('expo-crypto', () => ({
 }));
 
 import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
 
 describe('OAuthMobileAdapter', () => {
   const adapter = new OAuthMobileAdapter();
@@ -30,9 +29,10 @@ describe('OAuthMobileAdapter', () => {
     jest.clearAllMocks();
   });
 
-  it('builds authorization URL with PKCE params', () => {
+  it('builds authorization URL with provider redirect URI', () => {
     const url = adapter.buildAuthUrl({
       authorizeEndpoint: 'https://auth.example.com/authorize',
+      redirectUri: 'http://localhost:1455/auth/callback',
       clientId: 'test-client',
       scopes: ['read', 'write'],
       codeChallenge: 'abc123',
@@ -42,20 +42,23 @@ describe('OAuthMobileAdapter', () => {
     expect(url).toContain('client_id=test-client');
     expect(url).toContain('scope=read+write');
     expect(url).toContain('code_challenge=abc123');
-    expect(url).toContain('redirect_uri=pi-ai-rn%3A%2F%2Foauth%2Fcallback');
+    expect(url).toContain('redirect_uri=http%3A%2F%2Flocalhost%3A1455%2Fauth%2Fcallback');
   });
 
   it('opens browser and extracts authorization code from redirect', async () => {
     (WebBrowser.openAuthSessionAsync as jest.Mock).mockResolvedValue({
       type: 'success',
-      url: 'pi-ai-rn://oauth/callback?code=auth-code-xyz',
+      url: 'http://localhost:1455/auth/callback?code=auth-code-xyz&state=abc',
     });
 
-    const code = await adapter.authorize('https://auth.example.com/authorize?client_id=test');
+    const code = await adapter.authorize(
+      'https://auth.example.com/authorize?client_id=test',
+      'http://localhost:1455/auth/callback',
+    );
     expect(code).toBe('auth-code-xyz');
     expect(WebBrowser.openAuthSessionAsync).toHaveBeenCalledWith(
       'https://auth.example.com/authorize?client_id=test',
-      'pi-ai-rn://oauth/callback',
+      'http://localhost:1455/auth/callback',
     );
   });
 
@@ -64,7 +67,10 @@ describe('OAuthMobileAdapter', () => {
       type: 'cancel',
     });
 
-    const code = await adapter.authorize('https://auth.example.com/authorize');
+    const code = await adapter.authorize(
+      'https://auth.example.com/authorize',
+      'http://localhost:1455/auth/callback',
+    );
     expect(code).toBeNull();
   });
 
@@ -74,9 +80,5 @@ describe('OAuthMobileAdapter', () => {
     expect(codeVerifier.length).toBeGreaterThanOrEqual(43);
     expect(codeChallenge).toBeDefined();
     expect(codeChallenge.length).toBeGreaterThan(0);
-  });
-
-  it('exposes redirectUri as a public getter', () => {
-    expect(adapter.redirectUri).toBe('pi-ai-rn://oauth/callback');
   });
 });

@@ -59,12 +59,13 @@ export class AuthManager {
     const { codeVerifier, codeChallenge } = await this.oauth.generatePKCE();
     const authUrl = this.oauth.buildAuthUrl({
       authorizeEndpoint: provider.authorizeEndpoint,
+      redirectUri: provider.redirectUri,
       clientId: provider.clientId,
       scopes: provider.scopes,
       codeChallenge,
     });
 
-    const code = await this.oauth.authorize(authUrl);
+    const code = await this.oauth.authorize(authUrl, provider.redirectUri);
     if (!code) return false;
 
     const tokens = await this.exchangeCode(provider, code, codeVerifier);
@@ -93,7 +94,7 @@ export class AuthManager {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        grant_type: 'authorization_code', code, redirect_uri: this.oauth.redirectUri,
+        grant_type: 'authorization_code', code, redirect_uri: provider.redirectUri,
         client_id: provider.clientId, code_verifier: codeVerifier,
       }).toString(),
     });
