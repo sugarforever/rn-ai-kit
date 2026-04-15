@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
-import Markdown from 'react-native-markdown-display';
+import Markdown from 'react-native-marked';
 import type { ChatMessage } from '../lib/chat';
 
 export function MessageBubble({ message }: { message: ChatMessage }) {
@@ -21,7 +21,13 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
       {isUser ? (
         <Text style={styles.userText} selectable>{message.content}</Text>
       ) : (
-        <Markdown style={assistantMarkdown}>{message.content}</Markdown>
+        <Markdown
+          value={message.content || ' '}
+          flatListProps={{ scrollEnabled: false }}
+          theme={{
+            colors: { text: '#000', code: '#e8e8e8', link: '#007aff' },
+          }}
+        />
       )}
     </View>
   );
@@ -58,10 +64,4 @@ const styles = StyleSheet.create({
   },
   toolLabel: { fontSize: 11, fontWeight: '600', color: '#888', marginBottom: 4 },
   toolContent: { fontSize: 12, color: '#555', fontFamily: 'Menlo' },
-});
-
-const assistantMarkdown = StyleSheet.create({
-  body: { color: '#000', fontSize: 16 },
-  code_inline: { backgroundColor: '#e8e8e8', fontSize: 14, fontFamily: 'Menlo' },
-  fence: { backgroundColor: '#f5f5f5', padding: 10, borderRadius: 8, fontSize: 13 },
 });
