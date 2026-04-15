@@ -48,7 +48,19 @@ export class AuthManager {
     await this.backend.set(providerId, { apiKey, expiresAt: null });
   }
 
-  async login(providerId: string): Promise<boolean> {
+  /**
+   * Login with OAuth. For providers with localhost redirect URIs,
+   * the user may need to manually paste the redirect URL after
+   * authenticating in the browser.
+   *
+   * @param onNeedManualCode - Called when the user needs to paste the
+   *   authorization code or redirect URL. Return the pasted string,
+   *   or null to cancel.
+   */
+  async login(
+    providerId: string,
+    onNeedManualCode?: () => Promise<string | null>,
+  ): Promise<boolean> {
     const provider = PROVIDERS.find((p) => p.id === providerId);
     if (!provider) throw new Error(`Unknown provider: ${providerId}`);
 
@@ -65,7 +77,7 @@ export class AuthManager {
       codeChallenge,
     });
 
-    const code = await this.oauth.authorize(authUrl, provider.redirectUri);
+    const code = await this.oauth.authorize(authUrl, provider.redirectUri, onNeedManualCode);
     if (!code) return false;
 
     const tokens = await this.exchangeCode(provider, code, codeVerifier);

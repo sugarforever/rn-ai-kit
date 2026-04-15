@@ -23,8 +23,22 @@ export default function SettingsScreen() {
 
   const handleLogin = async (providerId: string) => {
     try {
-      await authManager.login(providerId);
-      refreshStatus();
+      const success = await authManager.login(providerId, () => {
+        // Prompt user to paste the redirect URL or authorization code
+        return new Promise((resolve) => {
+          Alert.prompt(
+            'Paste Authorization',
+            'After signing in, the browser may show an error page. ' +
+            'Copy the full URL from the address bar and paste it here.',
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
+              { text: 'Submit', onPress: (text) => resolve(text ?? null) },
+            ],
+            'plain-text',
+          );
+        });
+      });
+      if (success) refreshStatus();
     } catch (e: any) {
       Alert.alert('Login failed', e.message);
     }

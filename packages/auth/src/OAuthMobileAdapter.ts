@@ -30,15 +30,44 @@ export class OAuthMobileAdapter {
   }
 
   /**
-   * Open the auth URL in an in-app browser (ASWebAuthenticationSession on iOS).
-   * The session intercepts the redirect URI before it actually loads —
-   * this works with localhost, https, and custom scheme redirect URIs.
+   * Open the auth URL in an in-app browser.
+   *
+   * For providers with custom-scheme or HTTPS redirect URIs,
+   * ASWebAuthenticationSession intercepts the redirect automatically.
+   *
+   * For providers with localhost redirect URIs (OpenAI, Google),
+   * the browser will fail to load localhost. The user needs to copy
+   * the URL from the browser address bar and paste it back.
+   * In that case, `onNeedManualCode` is called to prompt the user.
    */
-  async authorize(authUrl: string, redirectUri: string): Promise<string | null> {
+  async authorize(
+    authUrl: string,
+    redirectUri: string,
+    onNeedManualCode?: () => Promise<string | null>,
+  ): Promise<string | null> {
+    const isLocalhostRedirect = redirectUri.startsWith('http://localhost') ||
+      redirectUri.startsWith('http://127.0.0.1');
+
     const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
-    if (result.type !== 'success') return null;
-    const url = new URL(result.url);
-    return url.searchParams.get('code');
+
+    // ASWebAuthenticationSession intercepted the redirect — extract code
+    if (result.type === 'success' && result.url) {
+      return extractCodeFromUrl(result.url);
+    }
+
+    // Browser was dismissed — for localhost redirects, prompt for manual code
+    if (isLocalhostRedirect && result.type === 'dismiss' && onNeedManualCode) {
+      const input = await onNeedManualCode();
+      if (!input) return null;
+      // User may paste the full redirect URL or just the code
+      if (input.includes('code=') || input.includes('://')) {
+        return extractCodeFromUrl(input);
+      }
+      // Treat as raw authorization code (may include code#state format)
+      return input.split('#')[0];
+    }
+
+    return null;
   }
 
   async generatePKCE(): Promise<{ codeVerifier: string; codeChallenge: string }> {
@@ -50,6 +79,15 @@ export class OAuthMobileAdapter {
     );
     const codeChallenge = hexToBase64Url(hashHex);
     return { codeVerifier, codeChallenge };
+  }
+}
+
+function extractCodeFromUrl(urlString: string): string | null {
+  try {
+    const url = new URL(urlString);
+    return url.searchParams.get('code');
+  } catch {
+    return null;
   }
 }
 

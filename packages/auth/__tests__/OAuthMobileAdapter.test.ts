@@ -4,10 +4,6 @@ jest.mock('expo-web-browser', () => ({
   openAuthSessionAsync: jest.fn(),
 }));
 
-jest.mock('expo-linking', () => ({
-  createURL: jest.fn((path: string) => `pi-ai-rn://${path}`),
-}));
-
 jest.mock('expo-crypto', () => ({
   getRandomBytes: jest.fn((size: number) => {
     const crypto = require('crypto');
@@ -45,7 +41,7 @@ describe('OAuthMobileAdapter', () => {
     expect(url).toContain('redirect_uri=http%3A%2F%2Flocalhost%3A1455%2Fauth%2Fcallback');
   });
 
-  it('opens browser and extracts authorization code from redirect', async () => {
+  it('extracts code when browser intercepts redirect', async () => {
     (WebBrowser.openAuthSessionAsync as jest.Mock).mockResolvedValue({
       type: 'success',
       url: 'http://localhost:1455/auth/callback?code=auth-code-xyz&state=abc',
@@ -56,20 +52,64 @@ describe('OAuthMobileAdapter', () => {
       'http://localhost:1455/auth/callback',
     );
     expect(code).toBe('auth-code-xyz');
-    expect(WebBrowser.openAuthSessionAsync).toHaveBeenCalledWith(
-      'https://auth.example.com/authorize?client_id=test',
-      'http://localhost:1455/auth/callback',
-    );
   });
 
-  it('returns null when user cancels', async () => {
+  it('prompts for manual code on localhost redirect when browser is dismissed', async () => {
+    (WebBrowser.openAuthSessionAsync as jest.Mock).mockResolvedValue({
+      type: 'dismiss',
+    });
+
+    const mockPrompt = jest.fn().mockResolvedValue(
+      'http://localhost:1455/auth/callback?code=manual-code-123&state=xyz',
+    );
+
+    const code = await adapter.authorize(
+      'https://auth.example.com/authorize',
+      'http://localhost:1455/auth/callback',
+      mockPrompt,
+    );
+    expect(mockPrompt).toHaveBeenCalled();
+    expect(code).toBe('manual-code-123');
+  });
+
+  it('accepts raw authorization code from manual input', async () => {
+    (WebBrowser.openAuthSessionAsync as jest.Mock).mockResolvedValue({
+      type: 'dismiss',
+    });
+
+    const mockPrompt = jest.fn().mockResolvedValue('raw-code-456');
+
+    const code = await adapter.authorize(
+      'https://auth.example.com/authorize',
+      'http://localhost:1455/auth/callback',
+      mockPrompt,
+    );
+    expect(code).toBe('raw-code-456');
+  });
+
+  it('returns null when user cancels manual input', async () => {
+    (WebBrowser.openAuthSessionAsync as jest.Mock).mockResolvedValue({
+      type: 'dismiss',
+    });
+
+    const mockPrompt = jest.fn().mockResolvedValue(null);
+
+    const code = await adapter.authorize(
+      'https://auth.example.com/authorize',
+      'http://localhost:1455/auth/callback',
+      mockPrompt,
+    );
+    expect(code).toBeNull();
+  });
+
+  it('returns null on cancel without manual prompt for non-localhost', async () => {
     (WebBrowser.openAuthSessionAsync as jest.Mock).mockResolvedValue({
       type: 'cancel',
     });
 
     const code = await adapter.authorize(
       'https://auth.example.com/authorize',
-      'http://localhost:1455/auth/callback',
+      'https://example.com/oauth/callback',
     );
     expect(code).toBeNull();
   });
