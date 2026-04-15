@@ -10,6 +10,7 @@
  *
  * Based on pi-ai's openai-codex-responses provider.
  */
+import { fetch as expoFetch } from 'expo/fetch';
 
 const DEFAULT_BASE_URL = 'https://chatgpt.com/backend-api';
 const JWT_CLAIM_PATH = 'https://api.openai.com/auth';
@@ -172,7 +173,8 @@ export async function streamChatGPT(options: ChatGPTStreamOptions): Promise<Chat
 
   let response: Response;
   try {
-    response = await fetch(url, {
+    // Use expo/fetch for streaming ReadableStream support on React Native
+    response = await (expoFetch as unknown as typeof globalThis.fetch)(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),

@@ -9,6 +9,7 @@ import { streamText, jsonSchema, tool, type ModelMessage } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { fetch as expoFetch } from 'expo/fetch';
 import { streamChatGPT } from './chatgpt-provider';
 import { authManager } from './auth';
 import { skillEngine } from './skills';
@@ -34,23 +35,26 @@ interface StreamCallbacks {
 // ============================================================================
 
 function createModel(providerId: string, modelId: string, apiKey: string) {
+  // Pass expo/fetch for React Native streaming support.
+  // RN's built-in fetch doesn't support ReadableStream (response.body is null).
+  const fetch = expoFetch as unknown as typeof globalThis.fetch;
+
   switch (providerId) {
     case 'anthropic': {
-      const anthropic = createAnthropic({ apiKey });
+      const anthropic = createAnthropic({ apiKey, fetch });
       return anthropic(modelId);
     }
     case 'openai': {
-      // Standard OpenAI API key (from platform.openai.com)
-      const openai = createOpenAI({ apiKey });
+      const openai = createOpenAI({ apiKey, fetch });
       return openai(modelId);
     }
     case 'google-gemini':
     case 'google': {
-      const google = createGoogleGenerativeAI({ apiKey });
+      const google = createGoogleGenerativeAI({ apiKey, fetch });
       return google(modelId);
     }
     default: {
-      const openai = createOpenAI({ apiKey });
+      const openai = createOpenAI({ apiKey, fetch });
       return openai(modelId);
     }
   }
