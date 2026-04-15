@@ -48,22 +48,43 @@ export class OAuthMobileAdapter {
     const isLocalhostRedirect = redirectUri.startsWith('http://localhost') ||
       redirectUri.startsWith('http://127.0.0.1');
 
+    if (isLocalhostRedirect) {
+      // For localhost redirects, use a plain browser (not openAuthSessionAsync).
+      // openAuthSessionAsync extracts the URL scheme for redirect detection —
+      // with "http" as the scheme, it can intercept internal auth-flow
+      // redirects before the sign-in page even loads.
+      // openBrowserAsync just opens the page and lets the user sign in.
+      // After auth, the browser redirects to localhost (which fails),
+      // the user copies the URL and pastes it back.
+      await WebBrowser.openBrowserAsync(authUrl);
+
+      // Browser closed — prompt for the redirect URL
+      if (onNeedManualCode) {
+        const input = await onNeedManualCode();
+        if (!input) return null;
+        if (input.includes('code=') || input.includes('://')) {
+          return extractCodeFromUrl(input);
+        }
+        return input.split('#')[0];
+      }
+      return null;
+    }
+
+    // For non-localhost redirects, use openAuthSessionAsync which
+    // intercepts the redirect automatically (custom schemes, HTTPS)
     const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
 
-    // ASWebAuthenticationSession intercepted the redirect — extract code
     if (result.type === 'success' && result.url) {
       return extractCodeFromUrl(result.url);
     }
 
-    // Browser was dismissed — for localhost redirects, prompt for manual code
-    if (isLocalhostRedirect && result.type === 'dismiss' && onNeedManualCode) {
+    // Browser dismissed without successful redirect — try manual fallback
+    if (result.type === 'dismiss' && onNeedManualCode) {
       const input = await onNeedManualCode();
       if (!input) return null;
-      // User may paste the full redirect URL or just the code
       if (input.includes('code=') || input.includes('://')) {
         return extractCodeFromUrl(input);
       }
-      // Treat as raw authorization code (may include code#state format)
       return input.split('#')[0];
     }
 

@@ -75,6 +75,7 @@ export class AuthManager {
       clientId: provider.clientId,
       scopes: provider.scopes,
       codeChallenge,
+      extraParams: provider.extraAuthParams,
     });
 
     const code = await this.oauth.authorize(authUrl, provider.redirectUri, onNeedManualCode);

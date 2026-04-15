@@ -7,6 +7,7 @@ export interface OAuthProviderConfig {
   clientId: string;
   scopes: string[];
   flowType: 'pkce' | 'device-code';
+  extraAuthParams?: Record<string, string>;
 }
 
 export { anthropicProvider } from './anthropic';

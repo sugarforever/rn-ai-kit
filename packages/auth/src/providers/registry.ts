@@ -23,6 +23,7 @@ export const anthropicProvider: OAuthProviderConfig = {
   clientId: '9d1c250a-e61b-44d9-88ed-5944d1962f5e',
   scopes: ['org:create_api_key', 'user:profile', 'user:inference'],
   flowType: 'pkce',
+  extraAuthParams: { code: 'true' },
 };
 
 // ---------------------------------------------------------------------------
@@ -38,6 +39,11 @@ export const openaiCodexProvider: OAuthProviderConfig = {
   clientId: 'app_EMoamEEZ73f0CkXaXp7hrann',
   scopes: ['openid', 'profile', 'email', 'offline_access'],
   flowType: 'pkce',
+  extraAuthParams: {
+    id_token_add_organizations: 'true',
+    codex_cli_simplified_flow: 'true',
+    originator: 'pi-ai-rn',
+  },
 };
 
 // ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@ import { OAuthMobileAdapter } from '../src/OAuthMobileAdapter';
 
 jest.mock('expo-web-browser', () => ({
   openAuthSessionAsync: jest.fn(),
+  openBrowserAsync: jest.fn().mockResolvedValue({ type: 'dismiss' }),
 }));
 
 jest.mock('expo-crypto', () => ({
@@ -41,15 +42,15 @@ describe('OAuthMobileAdapter', () => {
     expect(url).toContain('redirect_uri=http%3A%2F%2Flocalhost%3A1455%2Fauth%2Fcallback');
   });
 
-  it('extracts code when browser intercepts redirect', async () => {
+  it('extracts code when browser intercepts non-localhost redirect', async () => {
     (WebBrowser.openAuthSessionAsync as jest.Mock).mockResolvedValue({
       type: 'success',
-      url: 'http://localhost:1455/auth/callback?code=auth-code-xyz&state=abc',
+      url: 'https://example.com/oauth/callback?code=auth-code-xyz&state=abc',
     });
 
     const code = await adapter.authorize(
       'https://auth.example.com/authorize?client_id=test',
-      'http://localhost:1455/auth/callback',
+      'https://example.com/oauth/callback',
     );
     expect(code).toBe('auth-code-xyz');
   });
