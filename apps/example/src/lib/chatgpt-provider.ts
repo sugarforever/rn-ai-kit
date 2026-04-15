@@ -163,12 +163,31 @@ export async function streamChatGPT(options: ChatGPTStreamOptions): Promise<Chat
 
   console.log('[chatgpt] POST', url, { model: modelId });
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-    signal,
-  });
+  // Add a 30s timeout
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+  const combinedSignal = signal
+    ? AbortSignal.any([signal, controller.signal])
+    : controller.signal;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: combinedSignal,
+    });
+  } catch (e: any) {
+    clearTimeout(timeout);
+    if (e.name === 'AbortError') {
+      throw new Error('Request timed out. The ChatGPT backend may be slow — try again.');
+    }
+    throw e;
+  }
+  clearTimeout(timeout);
+
+  console.log('[chatgpt] response', response.status, response.headers.get('content-type'));
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -185,13 +204,17 @@ export async function streamChatGPT(options: ChatGPTStreamOptions): Promise<Chat
   }
 
   let fullText = '';
-  const toolCalls: Array<{ id: string; name: string; arguments: string }> = {};
-  // Track tool calls being built (partial arguments arrive incrementally)
+  const toolCalls: Array<{ id: string; name: string; arguments: string }> = [];
   const pendingToolCalls = new Map<number, { id: string; name: string; args: string }>();
   let finishReason: 'stop' | 'tool-calls' | 'error' = 'stop';
+  let eventCount = 0;
 
   for await (const event of parseSSE(response)) {
+    eventCount++;
     const type = event.type;
+    if (eventCount <= 5 || type?.includes('done') || type?.includes('error')) {
+      console.log('[chatgpt] SSE event', type);
+    }
 
     if (type === 'error' || type === 'response.failed') {
       const msg = event.message || event.response?.error?.message || JSON.stringify(event);
