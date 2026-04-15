@@ -143,6 +143,7 @@ async function sendMessageChatGPT(
 
       // Execute tool calls
       for (const tc of result.toolCalls) {
+        console.log('[chat:chatgpt] executing tool', tc.name, tc.arguments);
         let execResult: { success: boolean; data?: unknown; error?: string };
         if (skillId) {
           const args = typeof tc.arguments === 'string' ? JSON.parse(tc.arguments) : tc.arguments;
@@ -150,6 +151,7 @@ async function sendMessageChatGPT(
         } else {
           execResult = { success: false, error: 'No skill loaded' };
         }
+        console.log('[chat:chatgpt] tool result', tc.name, execResult.success, execResult.error);
 
         const resultText = JSON.stringify(
           execResult.success ? execResult.data : { error: execResult.error },

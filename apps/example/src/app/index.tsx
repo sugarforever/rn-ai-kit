@@ -160,16 +160,16 @@ export default function ChatScreen() {
             onToolCallStart: (name) => setActiveToolCall(name),
             onToolCallEnd: (name, result) => {
               setActiveToolCall(null);
+              // Remove streaming placeholder, add tool result, add new placeholder
+              const toolMsgId = `t-${Date.now()}-${name}`;
+              const newStreamingId = `s-${Date.now()}`;
               setMessages((prev) => [
                 ...prev.filter((m) => m.id !== streamingId),
-                ...newMsgs.filter((m) => m.role !== 'assistant'),
+                { id: toolMsgId, role: 'tool' as const, content: result, toolName: name },
+                { id: newStreamingId, role: 'assistant' as const, content: '', isStreaming: true },
               ]);
-              streamingId = `s-${Date.now()}`;
+              streamingId = newStreamingId;
               streamedText = '';
-              setMessages((prev) => [
-                ...prev,
-                { id: streamingId, role: 'assistant', content: '', isStreaming: true },
-              ]);
             },
             onDone: (fullText) => {
               setMessages((prev) =>
