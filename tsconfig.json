@@ -14,7 +14,7 @@
     "baseUrl": ".",
     "paths": {
       "@pi-ai-rn/auth": ["packages/auth/src"],
-      "@pi-ai-rn/skill-engine": ["packages/skill-engine/src"]
+      "@pi-ai-rn/chatgpt-provider": ["packages/chatgpt-provider/src"]
     }
   },
   "exclude": ["node_modules", "dist"]
