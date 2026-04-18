@@ -56,13 +56,17 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
           <View style={styles.markdownWrap}>
             <Markdown
               value={message.content || ' '}
-              flatListProps={{ scrollEnabled: false }}
+              flatListProps={{
+                scrollEnabled: false,
+                style: { backgroundColor: 'transparent' },
+              }}
               theme={{
                 colors: {
                   text: '#1A1A1A',
                   code: '#F0EDE8',
                   link: '#8B6914',
                   border: '#E8E4DD',
+                  background: '#FAFAF7',
                 },
               }}
             />
