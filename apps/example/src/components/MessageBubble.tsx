@@ -61,7 +61,7 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
                 style: { backgroundColor: 'transparent' },
               }}
               styles={{
-                list: { paddingLeft: 4 },
+                list: { width: 24, paddingTop: 2 },
                 li: { fontSize: 16, lineHeight: 24 },
               }}
               theme={{
