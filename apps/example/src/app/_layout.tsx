@@ -8,20 +8,42 @@ export default function RootLayout() {
 
   return (
     <>
-      <StatusBar style="auto" />
-      <Stack>
+      <StatusBar style="dark" />
+      <Stack
+        screenOptions={{
+          headerStyle: { backgroundColor: '#FAFAF7' },
+          headerShadowVisible: false,
+          headerTintColor: '#1A1A1A',
+          headerTitleStyle: {
+            fontWeight: '600',
+            fontSize: 17,
+            letterSpacing: -0.4,
+            color: '#1A1A1A',
+          },
+          contentStyle: { backgroundColor: '#FAFAF7' },
+        }}
+      >
         <Stack.Screen
           name="index"
           options={{
-            title: 'Pi AI Chat',
+            title: 'Pi AI',
             headerRight: () => (
-              <TouchableOpacity onPress={() => router.push('/settings')}>
-                <Ionicons name="settings-outline" size={24} color="#007aff" />
+              <TouchableOpacity
+                onPress={() => router.push('/settings')}
+                hitSlop={8}
+              >
+                <Ionicons name="ellipsis-horizontal" size={22} color="#8C8577" />
               </TouchableOpacity>
             ),
           }}
         />
-        <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+        <Stack.Screen
+          name="settings"
+          options={{
+            title: 'Settings',
+            headerBackTitle: 'Chat',
+          }}
+        />
       </Stack>
     </>
   );

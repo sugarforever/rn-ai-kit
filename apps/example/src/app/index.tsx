@@ -57,7 +57,7 @@ export default function ChatScreen() {
           {
             id: `e-${Date.now()}`,
             role: 'assistant',
-            content: 'No provider connected. Tap the gear icon to sign in or add an API key.',
+            content: 'No provider connected. Go to **Settings** to sign in or add an API key.',
           },
         ]);
         return;
@@ -136,16 +136,18 @@ export default function ChatScreen() {
           }
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>Pi AI Example</Text>
-              <Text style={styles.emptyHint}>
-                Send a message to start chatting, or go to{' '}
-                <Text
-                  style={styles.link}
-                  onPress={() => router.push('/settings')}
-                >
-                  Settings
-                </Text>{' '}
-                to connect a provider.
+              <Text style={styles.emptyIcon}>{'✦'}</Text>
+              <Text style={styles.emptyTitle}>Pi AI</Text>
+              <Text style={styles.emptySubtitle}>
+                Your multi-provider AI assistant
+              </Text>
+              <Text
+                style={styles.emptyAction}
+                onPress={() => router.push('/settings')}
+              >
+                {activeProvider
+                  ? 'Start a conversation below'
+                  : 'Connect a provider in Settings →'}
               </Text>
             </View>
           }
@@ -158,10 +160,36 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1, backgroundColor: '#FAFAF7' },
   messageList: { padding: 16, paddingBottom: 8 },
-  empty: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40, marginTop: 100 },
-  emptyTitle: { fontSize: 22, fontWeight: '600', marginBottom: 12 },
-  emptyHint: { fontSize: 15, color: '#888', textAlign: 'center', lineHeight: 22 },
-  link: { color: '#007aff' },
+  empty: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    marginTop: 140,
+  },
+  emptyIcon: {
+    fontSize: 32,
+    color: '#D4C9A8',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    letterSpacing: -0.8,
+    marginBottom: 6,
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    color: '#8C8577',
+    letterSpacing: -0.2,
+    marginBottom: 24,
+  },
+  emptyAction: {
+    fontSize: 15,
+    color: '#8B6914',
+    fontWeight: '500',
+    letterSpacing: -0.2,
+  },
 });

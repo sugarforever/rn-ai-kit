@@ -24,12 +24,10 @@ export default function SettingsScreen() {
   const handleLogin = async (providerId: string) => {
     try {
       const success = await authManager.login(providerId, () => {
-        // Prompt user to paste the redirect URL or authorization code
         return new Promise((resolve) => {
           Alert.prompt(
             'Paste Authorization',
-            'After signing in, the browser may show an error page. ' +
-            'Copy the full URL from the address bar and paste it here.',
+            'After signing in, the browser may show an error page. Copy the full URL from the address bar and paste it here.',
             [
               { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
               { text: 'Submit', onPress: (text) => resolve(text ?? null) },
@@ -60,34 +58,50 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.sectionTitle}>AI PROVIDERS</Text>
-      <Text style={styles.hint}>Sign in with OAuth or paste an API key.</Text>
+      <Text style={styles.sectionTitle}>PROVIDERS</Text>
 
       {providers.map((p) => {
         const connected = connectedIds.has(p.id);
         return (
           <View key={p.id} style={styles.providerRow}>
-            <View style={styles.providerInfo}>
-              <Text style={styles.providerName}>{p.name}</Text>
-              <Text style={[styles.status, connected && styles.connected]}>
-                {connected ? 'Connected' : 'Not connected'}
-              </Text>
-            </View>
-            <View style={styles.actions}>
-              {connected ? (
-                <TouchableOpacity onPress={() => handleLogout(p.id)}>
-                  <Text style={styles.disconnectText}>Disconnect</Text>
-                </TouchableOpacity>
-              ) : (
-                <>
-                  <TouchableOpacity style={styles.button} onPress={() => handleLogin(p.id)}>
-                    <Text style={styles.buttonText}>Sign In</Text>
+            <View style={styles.providerHeader}>
+              <View style={styles.providerInfo}>
+                <Text style={styles.providerName}>{p.name}</Text>
+                <View style={styles.statusRow}>
+                  <View style={[styles.statusDot, connected && styles.statusDotActive]} />
+                  <Text style={[styles.statusText, connected && styles.statusTextActive]}>
+                    {connected ? 'Connected' : 'Not connected'}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.actions}>
+                {connected ? (
+                  <TouchableOpacity
+                    style={styles.disconnectButton}
+                    onPress={() => handleLogout(p.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.disconnectText}>Disconnect</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.button} onPress={() => setShowKeyInput(showKeyInput === p.id ? null : p.id)}>
-                    <Text style={styles.buttonText}>API Key</Text>
-                  </TouchableOpacity>
-                </>
-              )}
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => handleLogin(p.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.actionText}>Sign In</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.actionButtonSecondary}
+                      onPress={() => setShowKeyInput(showKeyInput === p.id ? null : p.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.actionTextSecondary}>API Key</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
             </View>
             {showKeyInput === p.id && (
               <View style={styles.keyRow}>
@@ -96,10 +110,15 @@ export default function SettingsScreen() {
                   value={apiKeyInputs[p.id] ?? ''}
                   onChangeText={(t) => setApiKeyInputs((prev) => ({ ...prev, [p.id]: t }))}
                   placeholder="Paste API key..."
+                  placeholderTextColor="#A09882"
                   secureTextEntry
                   autoCapitalize="none"
                 />
-                <TouchableOpacity style={styles.saveButton} onPress={() => handleSaveKey(p.id)}>
+                <TouchableOpacity
+                  style={styles.saveButton}
+                  onPress={() => handleSaveKey(p.id)}
+                  activeOpacity={0.7}
+                >
                   <Text style={styles.saveText}>Save</Text>
                 </TouchableOpacity>
               </View>
@@ -108,14 +127,15 @@ export default function SettingsScreen() {
         );
       })}
 
-      <Text style={[styles.sectionTitle, { marginTop: 32 }]}>RAW API KEY</Text>
-      <Text style={styles.hint}>For providers not listed above (Groq, Together, Ollama, etc.)</Text>
-      <View style={styles.keyRow}>
+      <Text style={[styles.sectionTitle, { marginTop: 36 }]}>CUSTOM PROVIDER</Text>
+      <Text style={styles.hint}>For providers not listed above</Text>
+      <View style={styles.customRow}>
         <TextInput
           style={styles.keyInput}
           value={apiKeyInputs['custom'] ?? ''}
           onChangeText={(t) => setApiKeyInputs((prev) => ({ ...prev, custom: t }))}
           placeholder="Provider ID (e.g. groq)"
+          placeholderTextColor="#A09882"
           autoCapitalize="none"
         />
       </View>
@@ -125,6 +145,7 @@ export default function SettingsScreen() {
           value={apiKeyInputs['custom-key'] ?? ''}
           onChangeText={(t) => setApiKeyInputs((prev) => ({ ...prev, 'custom-key': t }))}
           placeholder="API key..."
+          placeholderTextColor="#A09882"
           secureTextEntry
           autoCapitalize="none"
         />
@@ -138,6 +159,7 @@ export default function SettingsScreen() {
             setApiKeyInputs((prev) => ({ ...prev, custom: '', 'custom-key': '' }));
             Alert.alert('Saved', `API key stored for "${id}"`);
           }}
+          activeOpacity={0.7}
         >
           <Text style={styles.saveText}>Save</Text>
         </TouchableOpacity>
@@ -147,21 +169,135 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  content: { padding: 16, paddingBottom: 40 },
-  sectionTitle: { fontSize: 13, fontWeight: '600', color: '#888', letterSpacing: 0.5, marginBottom: 4 },
-  hint: { fontSize: 14, color: '#aaa', marginBottom: 16 },
-  providerRow: { paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#e0e0e0' },
-  providerInfo: { marginBottom: 8 },
-  providerName: { fontSize: 16, fontWeight: '500' },
-  status: { fontSize: 13, color: '#aaa', marginTop: 2 },
-  connected: { color: '#34c759' },
-  actions: { flexDirection: 'row', gap: 10 },
-  button: { paddingHorizontal: 14, paddingVertical: 6, backgroundColor: '#f0f0f0', borderRadius: 8 },
-  buttonText: { fontSize: 14, color: '#007aff', fontWeight: '500' },
-  disconnectText: { fontSize: 14, color: '#ff3b30', fontWeight: '500' },
-  keyRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  keyInput: { flex: 1, fontSize: 14, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#f5f5f5', borderRadius: 8 },
-  saveButton: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#007aff', borderRadius: 8 },
-  saveText: { fontSize: 14, color: '#fff', fontWeight: '500' },
+  container: { flex: 1, backgroundColor: '#FAFAF7' },
+  content: { padding: 20, paddingBottom: 40 },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#A09882',
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
+  hint: {
+    fontSize: 14,
+    color: '#A09882',
+    marginBottom: 12,
+    letterSpacing: -0.2,
+  },
+  providerRow: {
+    backgroundColor: '#F0EDE8',
+    borderRadius: 14,
+    borderCurve: 'continuous',
+    padding: 16,
+    marginBottom: 8,
+  },
+  providerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  providerInfo: {
+    flex: 1,
+  },
+  providerName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1A1A1A',
+    letterSpacing: -0.3,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#C8C2B6',
+    marginRight: 6,
+  },
+  statusDotActive: {
+    backgroundColor: '#5C9E5C',
+  },
+  statusText: {
+    fontSize: 13,
+    color: '#A09882',
+    letterSpacing: -0.2,
+  },
+  statusTextActive: {
+    color: '#5C9E5C',
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    backgroundColor: '#2C2C2E',
+    borderRadius: 10,
+    borderCurve: 'continuous',
+  },
+  actionText: {
+    fontSize: 13,
+    color: '#FAFAF7',
+    fontWeight: '600',
+    letterSpacing: -0.2,
+  },
+  actionButtonSecondary: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    backgroundColor: '#E4E0D9',
+    borderRadius: 10,
+    borderCurve: 'continuous',
+  },
+  actionTextSecondary: {
+    fontSize: 13,
+    color: '#4A4640',
+    fontWeight: '500',
+    letterSpacing: -0.2,
+  },
+  disconnectButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  disconnectText: {
+    fontSize: 13,
+    color: '#C0564E',
+    fontWeight: '500',
+    letterSpacing: -0.2,
+  },
+  keyRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+  },
+  customRow: {
+    marginBottom: 8,
+  },
+  keyInput: {
+    flex: 1,
+    fontSize: 14,
+    letterSpacing: -0.2,
+    color: '#1A1A1A',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: '#F0EDE8',
+    borderRadius: 10,
+    borderCurve: 'continuous',
+  },
+  saveButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#2C2C2E',
+    borderRadius: 10,
+    borderCurve: 'continuous',
+  },
+  saveText: {
+    fontSize: 14,
+    color: '#FAFAF7',
+    fontWeight: '600',
+    letterSpacing: -0.2,
+  },
 });
