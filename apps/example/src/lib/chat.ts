@@ -5,7 +5,7 @@ import { streamText } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { createChatGPT } from '@pi-ai-rn/chatgpt-provider';
+import { createChatGPT } from '@rn-ai-kit/chatgpt-provider';
 import { fetch as expoFetch } from 'expo/fetch';
 import { authManager } from './auth';
 

@@ -26,7 +26,7 @@ export default function RootLayout() {
         <Stack.Screen
           name="index"
           options={{
-            title: 'Pi AI',
+            title: 'RN AI Kit',
             headerRight: () => (
               <TouchableOpacity
                 onPress={() => router.push('/settings')}

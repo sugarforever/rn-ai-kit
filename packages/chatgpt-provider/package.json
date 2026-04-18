@@ -1,5 +1,5 @@
 {
-  "name": "@pi-ai-rn/chatgpt-provider",
+  "name": "@rn-ai-kit/chatgpt-provider",
   "version": "0.1.0",
   "private": true,
   "main": "src/index.ts",

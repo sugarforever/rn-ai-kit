@@ -18,7 +18,7 @@ export interface ChatGPTProvider {
  *
  * Usage:
  * ```ts
- * import { createChatGPT } from '@pi-ai-rn/chatgpt-provider';
+ * import { createChatGPT } from '@rn-ai-kit/chatgpt-provider';
  * const chatgpt = createChatGPT({ apiKey: '<oauth-token>' });
  * const model = chatgpt('gpt-5.4');
  * ```

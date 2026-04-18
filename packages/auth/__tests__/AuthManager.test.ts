@@ -17,7 +17,7 @@ jest.mock('expo-web-browser', () => ({
 
 // Mock expo-linking (used by OAuthMobileAdapter)
 jest.mock('expo-linking', () => ({
-  createURL: jest.fn((path: string) => `pi-ai-rn://${path}`),
+  createURL: jest.fn((path: string) => `rn-ai-kit://${path}`),
 }));
 
 // Mock expo-crypto (used by OAuthMobileAdapter.generatePKCE)

@@ -46,8 +46,8 @@ export class ChatGPTLanguageModel implements LanguageModelV1 {
       'Authorization': `Bearer ${this.config.apiKey}`,
       'chatgpt-account-id': accountId,
       'OpenAI-Beta': 'responses=experimental',
-      'originator': 'pi-ai-rn',
-      'User-Agent': 'pi-ai-rn (mobile)',
+      'originator': 'rn-ai-kit',
+      'User-Agent': 'rn-ai-kit (mobile)',
       'Accept': 'text/event-stream',
       'Content-Type': 'application/json',
     };

@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 
-const KEY_PREFIX = 'pi-ai-rn.cred.';
-const INDEX_KEY = 'pi-ai-rn.cred-index';
+const KEY_PREFIX = 'rn-ai-kit.cred.';
+const INDEX_KEY = 'rn-ai-kit.cred-index';
 
 export interface StoredCredential {
   apiKey: string;

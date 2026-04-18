@@ -13,8 +13,8 @@
     "outDir": "dist",
     "baseUrl": ".",
     "paths": {
-      "@pi-ai-rn/auth": ["packages/auth/src"],
-      "@pi-ai-rn/chatgpt-provider": ["packages/chatgpt-provider/src"]
+      "@rn-ai-kit/auth": ["packages/auth/src"],
+      "@rn-ai-kit/chatgpt-provider": ["packages/chatgpt-provider/src"]
     }
   },
   "exclude": ["node_modules", "dist"]

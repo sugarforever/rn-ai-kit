@@ -42,7 +42,7 @@ export const openaiCodexProvider: OAuthProviderConfig = {
   extraAuthParams: {
     id_token_add_organizations: 'true',
     codex_cli_simplified_flow: 'true',
-    originator: 'pi-ai-rn',
+    originator: 'rn-ai-kit',
   },
 };
 

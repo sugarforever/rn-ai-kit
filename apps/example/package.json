@@ -1,5 +1,5 @@
 {
-  "name": "pi-ai-rn-example",
+  "name": "rn-ai-kit-example",
   "version": "0.1.0",
   "private": true,
   "main": "expo-router/entry",
@@ -12,8 +12,8 @@
     "@ai-sdk/openai": "^1.0.0",
     "@ai-sdk/google": "^1.0.0",
     "ai": "^4.0.0",
-    "@pi-ai-rn/auth": "*",
-    "@pi-ai-rn/chatgpt-provider": "*",
+    "@rn-ai-kit/auth": "*",
+    "@rn-ai-kit/chatgpt-provider": "*",
     "expo": "~55.0.15",
     "expo-crypto": "~55.0.14",
     "expo-linking": "~55.0.13",

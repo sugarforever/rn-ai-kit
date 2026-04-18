@@ -137,9 +137,9 @@ export default function ChatScreen() {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Text style={styles.emptyIcon}>{'✦'}</Text>
-              <Text style={styles.emptyTitle}>Pi AI</Text>
+              <Text style={styles.emptyTitle}>RN AI Kit</Text>
               <Text style={styles.emptySubtitle}>
-                Your multi-provider AI assistant
+                Multi-provider AI on React Native
               </Text>
               <Text
                 style={styles.emptyAction}

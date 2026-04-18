@@ -1,15 +1,15 @@
 {
   "expo": {
-    "name": "Pi AI Example",
-    "slug": "pi-ai-rn-example",
+    "name": "RN AI Kit Example",
+    "slug": "rn-ai-kit-example",
     "version": "0.1.0",
-    "scheme": "pi-ai-rn",
+    "scheme": "rn-ai-kit",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.piai.rn.example"
+      "bundleIdentifier": "com.rnaikit.example"
     },
     "web": {
       "bundler": "metro"
