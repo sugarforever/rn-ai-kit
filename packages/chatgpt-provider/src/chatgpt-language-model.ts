@@ -79,10 +79,8 @@ export class ChatGPTLanguageModel implements LanguageModelV1 {
       body.parallel_tool_calls = true;
     }
 
-    // Map standard AI SDK settings
-    if (options.maxTokens !== undefined) body.max_output_tokens = options.maxTokens;
-    if (options.temperature !== undefined) body.temperature = options.temperature;
-    if (options.topP !== undefined) body.top_p = options.topP;
+    // Note: The ChatGPT backend API does not support temperature, maxTokens,
+    // topP, or other standard OpenAI API parameters. They are silently omitted.
 
     return body;
   }
