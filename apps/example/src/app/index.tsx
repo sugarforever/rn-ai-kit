@@ -3,8 +3,6 @@ import {
   View,
   FlatList,
   Text,
-  TouchableOpacity,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -15,31 +13,24 @@ import { MessageBubble } from '../components/MessageBubble';
 import { ChatInput } from '../components/ChatInput';
 import { sendMessage, type ChatMessage } from '../lib/chat';
 import { authManager } from '../lib/auth';
-import { skillEngine } from '../lib/skills';
-import { SandboxWebView, type SandboxWebViewRef, BridgeHost } from '@pi-ai-rn/skill-engine';
-import { openDatabaseSync } from 'expo-sqlite';
-import * as FileSystem from 'expo-file-system';
 
-// Default models per provider — a real app would let the user pick
 const DEFAULT_MODELS: Record<string, string> = {
   'anthropic': 'claude-sonnet-4-6',
-  'openai-codex': 'gpt-5.4',           // ChatGPT backend (OAuth subscription)
-  'openai': 'gpt-4o',                   // Standard OpenAI API key
+  'openai-codex': 'gpt-5.4',
+  'openai': 'gpt-4o',
   'google-gemini': 'gemini-3-flash',
   'github-copilot': 'gpt-4o',
   'google-antigravity': 'claude-sonnet-4-6',
 };
-const SKILL_ID = 'hn-copilot';
+
+const SYSTEM_PROMPT = `You are a helpful assistant. Format your responses using Markdown for readability.`;
 
 export default function ChatScreen() {
   const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [activeProvider, setActiveProvider] = useState<{ id: string; model: string } | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [activeToolCall, setActiveToolCall] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
-  const sandboxRef = useRef<SandboxWebViewRef>(null);
-  const bridgeRef = useRef<BridgeHost | null>(null);
 
   // Detect which provider is connected
   useEffect(() => {
@@ -54,58 +45,7 @@ export default function ChatScreen() {
       }
       setActiveProvider(null);
     })();
-  }, [messages.length === 0]); // re-check when navigating back from settings
-
-  // Set up sandbox bridge + executor
-  useEffect(() => {
-    const skill = skillEngine.getSkillDefinition(SKILL_ID);
-    const skillDataDir = `${FileSystem.documentDirectory}skills/${SKILL_ID}`;
-    const skillDb = openDatabaseSync(`skill-${SKILL_ID}.db`);
-
-    const bridge = new BridgeHost({
-      skillId: SKILL_ID,
-      allowedDomains: skill.allowedDomains ?? [],
-      sendToWebView: (response) => sandboxRef.current?.sendMessage(response),
-      db: skillDb,
-      dataDir: skillDataDir,
-    });
-    bridgeRef.current = bridge;
-
-    // Wire up SkillEngine executor
-    const pendingCalls = new Map<string, (r: any) => void>();
-
-    skillEngine.setExecutor(async (_sid, toolName, args) => {
-      const requestId = `tool-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      return new Promise((resolve) => {
-        pendingCalls.set(requestId, resolve);
-        sandboxRef.current?.executeToolRequest(toolName, args, requestId);
-      });
-    });
-
-    // Listen for tool results from WebView
-    const onToolResult = (requestId: string, result: any) => {
-      const resolve = pendingCalls.get(requestId);
-      if (resolve) {
-        pendingCalls.delete(requestId);
-        resolve(result);
-      }
-    };
-
-    // Store onToolResult so the SandboxWebView can call it
-    (globalThis as any).__onToolResult = onToolResult;
-
-    // Register tools in WebView after a brief delay for load
-    const timer = setTimeout(() => {
-      for (const tool of skill.tools) {
-        sandboxRef.current?.injectToolRegistration(tool.name, tool.execute);
-      }
-    }, 500);
-
-    return () => {
-      clearTimeout(timer);
-      pendingCalls.clear();
-    };
-  }, []);
+  }, [messages.length === 0]);
 
   const handleSend = useCallback(
     async (text: string) => {
@@ -123,17 +63,11 @@ export default function ChatScreen() {
         return;
       }
 
-      // Add user message immediately
-      const userMsg: ChatMessage = {
-        id: `u-${Date.now()}`,
-        role: 'user',
-        content: text,
-      };
+      const userMsg: ChatMessage = { id: `u-${Date.now()}`, role: 'user', content: text };
       setMessages((prev) => [...prev, userMsg]);
       setIsStreaming(true);
 
-      // Streaming placeholder
-      let streamingId = `s-${Date.now()}`;
+      const streamingId = `s-${Date.now()}`;
       let streamedText = '';
 
       setMessages((prev) => [
@@ -141,72 +75,45 @@ export default function ChatScreen() {
         { id: streamingId, role: 'assistant', content: '', isStreaming: true },
       ]);
 
-      try {
-        const newMsgs = await sendMessage(
-          text,
-          [...messages, userMsg],
-          SKILL_ID,
-          activeProvider.id,
-          activeProvider.model,
-          {
-            onTextDelta: (delta) => {
-              streamedText += delta;
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === streamingId ? { ...m, content: streamedText } : m,
-                ),
-              );
-            },
-            onToolCallStart: (name) => setActiveToolCall(name),
-            onToolCallEnd: (name, result) => {
-              setActiveToolCall(null);
-              // Remove streaming placeholder, add tool result, add new placeholder
-              const toolMsgId = `t-${Date.now()}-${name}`;
-              const newStreamingId = `s-${Date.now()}`;
-              setMessages((prev) => [
-                ...prev.filter((m) => m.id !== streamingId),
-                { id: toolMsgId, role: 'tool' as const, content: result, toolName: name },
-                { id: newStreamingId, role: 'assistant' as const, content: '', isStreaming: true },
-              ]);
-              streamingId = newStreamingId;
-              streamedText = '';
-            },
-            onDone: (fullText) => {
-              setMessages((prev) =>
-                prev
-                  .filter((m) => m.id !== streamingId || fullText)
-                  .map((m) =>
-                    m.id === streamingId
-                      ? { ...m, content: fullText, isStreaming: false }
-                      : m,
-                  ),
-              );
-            },
-            onError: (error) => {
-              // Show error inline as an assistant message instead of alert
-              setMessages((prev) =>
-                prev.map((m) =>
+      await sendMessage(
+        text,
+        [...messages, userMsg],
+        SYSTEM_PROMPT,
+        activeProvider.id,
+        activeProvider.model,
+        {
+          onTextDelta: (delta) => {
+            streamedText += delta;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === streamingId ? { ...m, content: streamedText } : m,
+              ),
+            );
+          },
+          onDone: (fullText) => {
+            setMessages((prev) =>
+              prev
+                .filter((m) => m.id !== streamingId || fullText)
+                .map((m) =>
                   m.id === streamingId
-                    ? { ...m, content: `Something went wrong: ${error}`, isStreaming: false }
+                    ? { ...m, content: fullText, isStreaming: false }
                     : m,
                 ),
-              );
-            },
+            );
           },
-        );
-      } catch (e: any) {
-        const errorMsg = e.message ?? String(e);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === streamingId
-              ? { ...m, content: `Something went wrong: ${errorMsg}`, isStreaming: false }
-              : m,
-          ),
-        );
-      } finally {
-        setIsStreaming(false);
-        setActiveToolCall(null);
-      }
+          onError: (error) => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === streamingId
+                  ? { ...m, content: `Something went wrong: ${error}`, isStreaming: false }
+                  : m,
+              ),
+            );
+          },
+        },
+      );
+
+      setIsStreaming(false);
     },
     [messages, isStreaming, activeProvider],
   );
@@ -218,7 +125,6 @@ export default function ChatScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={90}
       >
-        {/* Message list */}
         <FlatList
           ref={flatListRef}
           data={messages}
@@ -232,7 +138,7 @@ export default function ChatScreen() {
             <View style={styles.empty}>
               <Text style={styles.emptyTitle}>Pi AI Example</Text>
               <Text style={styles.emptyHint}>
-                HN Copilot is loaded. Try "Sync the latest Hacker News stories" or go to{' '}
+                Send a message to start chatting, or go to{' '}
                 <Text
                   style={styles.link}
                   onPress={() => router.push('/settings')}
@@ -245,27 +151,8 @@ export default function ChatScreen() {
           }
         />
 
-        {/* Tool call indicator */}
-        {activeToolCall && (
-          <View style={styles.toolIndicator}>
-            <ActivityIndicator size="small" color="#007aff" />
-            <Text style={styles.toolIndicatorText}>
-              Running {activeToolCall}...
-            </Text>
-          </View>
-        )}
-
         <ChatInput onSend={handleSend} disabled={isStreaming} />
       </KeyboardAvoidingView>
-
-      {/* Hidden sandbox WebView */}
-      <SandboxWebView
-        ref={sandboxRef}
-        onBridgeMessage={(msg) => bridgeRef.current?.handleMessage(msg)}
-        onToolResult={(requestId, result) => {
-          (globalThis as any).__onToolResult?.(requestId, result);
-        }}
-      />
     </SafeAreaView>
   );
 }
@@ -277,15 +164,4 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 22, fontWeight: '600', marginBottom: 12 },
   emptyHint: { fontSize: 15, color: '#888', textAlign: 'center', lineHeight: 22 },
   link: { color: '#007aff' },
-  toolIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    backgroundColor: '#f0f4ff',
-    marginHorizontal: 16,
-    borderRadius: 8,
-    borderCurve: 'continuous',
-  },
-  toolIndicatorText: { marginLeft: 8, fontSize: 13, color: '#007aff', fontWeight: '500' },
 });

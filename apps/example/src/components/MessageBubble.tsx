@@ -3,17 +3,6 @@ import Markdown from 'react-native-marked';
 import type { ChatMessage } from '../lib/chat';
 
 export function MessageBubble({ message }: { message: ChatMessage }) {
-  if (message.role === 'tool') {
-    return (
-      <View style={styles.toolBubble}>
-        <Text style={styles.toolLabel}>{message.toolName ?? 'tool'}</Text>
-        <Text style={styles.toolContent} selectable numberOfLines={6}>
-          {formatJson(message.content)}
-        </Text>
-      </View>
-    );
-  }
-
   const isUser = message.role === 'user';
 
   return (
@@ -33,14 +22,6 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
   );
 }
 
-function formatJson(s: string): string {
-  try {
-    return JSON.stringify(JSON.parse(s), null, 2);
-  } catch {
-    return s;
-  }
-}
-
 const styles = StyleSheet.create({
   bubble: {
     maxWidth: '85%',
@@ -53,15 +34,4 @@ const styles = StyleSheet.create({
   userBubble: { alignSelf: 'flex-end', backgroundColor: '#007aff' },
   assistantBubble: { alignSelf: 'flex-start', backgroundColor: '#f0f0f0' },
   userText: { color: '#fff', fontSize: 16 },
-  toolBubble: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#f8f8f0',
-    borderRadius: 12,
-    borderCurve: 'continuous',
-    padding: 10,
-    marginVertical: 3,
-    maxWidth: '90%',
-  },
-  toolLabel: { fontSize: 11, fontWeight: '600', color: '#888', marginBottom: 4 },
-  toolContent: { fontSize: 12, color: '#555', fontFamily: 'Menlo' },
 });

@@ -1,331 +1,97 @@
 /**
- * Chat module — sends messages to LLM, streams responses,
- * and handles multi-turn tool call loops.
- *
- * Uses Vercel AI SDK for standard providers (Anthropic, Google, OpenAI API key).
- * Uses custom ChatGPT provider for OpenAI OAuth (subscription tokens).
+ * Chat module — unified streaming via AI SDK for all providers.
  */
-import { streamText, jsonSchema, tool, type ModelMessage } from 'ai';
+import { streamText } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createChatGPT } from '@pi-ai-rn/chatgpt-provider';
 import { fetch as expoFetch } from 'expo/fetch';
-import { streamChatGPT } from './chatgpt-provider';
 import { authManager } from './auth';
-import { skillEngine } from './skills';
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant' | 'tool';
+  role: 'user' | 'assistant';
   content: string;
-  toolName?: string;
   isStreaming?: boolean;
 }
 
 interface StreamCallbacks {
   onTextDelta: (text: string) => void;
-  onToolCallStart: (toolName: string) => void;
-  onToolCallEnd: (toolName: string, result: string) => void;
   onDone: (fullText: string) => void;
   onError: (error: string) => void;
 }
 
-// ============================================================================
-// Provider factory (Vercel AI SDK models)
-// ============================================================================
+// Expo/fetch for React Native streaming (response.body) support
+const fetch = expoFetch as unknown as typeof globalThis.fetch;
 
 function createModel(providerId: string, modelId: string, apiKey: string) {
-  // Pass expo/fetch for React Native streaming support.
-  // RN's built-in fetch doesn't support ReadableStream (response.body is null).
-  const fetch = expoFetch as unknown as typeof globalThis.fetch;
-
   switch (providerId) {
-    case 'anthropic': {
-      const anthropic = createAnthropic({ apiKey, fetch });
-      return anthropic(modelId);
-    }
-    case 'openai': {
-      const openai = createOpenAI({ apiKey, fetch });
-      return openai(modelId);
-    }
+    case 'anthropic':
+      return createAnthropic({ apiKey, fetch })(modelId);
+    case 'openai':
+      return createOpenAI({ apiKey, fetch })(modelId);
     case 'google-gemini':
-    case 'google': {
-      const google = createGoogleGenerativeAI({ apiKey, fetch });
-      return google(modelId);
-    }
-    default: {
-      const openai = createOpenAI({ apiKey, fetch });
-      return openai(modelId);
-    }
+    case 'google':
+      return createGoogleGenerativeAI({ apiKey, fetch })(modelId);
+    case 'openai-codex':
+      return createChatGPT({ apiKey, fetch })(modelId);
+    default:
+      return createOpenAI({ apiKey, fetch })(modelId);
   }
 }
-
-// ============================================================================
-// Tool definitions
-// ============================================================================
-
-function buildToolDefs(skillId: string) {
-  return skillEngine.getToolDefinitions(skillId);
-}
-
-function buildAISDKTools(skillId: string) {
-  const defs = buildToolDefs(skillId);
-  const tools: Record<string, ReturnType<typeof tool>> = {};
-  for (const def of defs) {
-    tools[def.name] = tool({
-      description: def.description,
-      inputSchema: jsonSchema(def.parameters as any),
-    });
-  }
-  return tools;
-}
-
-// ============================================================================
-// ChatGPT backend path (OAuth subscription tokens)
-// ============================================================================
-
-async function sendMessageChatGPT(
-  userText: string,
-  history: ChatMessage[],
-  skillId: string | null,
-  modelId: string,
-  apiKey: string,
-  callbacks: StreamCallbacks,
-): Promise<ChatMessage[]> {
-  const systemPrompt = skillId ? skillEngine.getSystemPrompt(skillId) : undefined;
-  const toolDefs = skillId ? buildToolDefs(skillId) : [];
-
-  // Build message array — the Responses API uses a mix of message objects
-  // and typed items (function_call, function_call_output) in the input array.
-  const messages: any[] = [];
-  for (const m of history) {
-    if (m.role === 'user') {
-      messages.push({ type: 'message', role: 'user', content: [{ type: 'input_text', text: m.content }] });
-    } else if (m.role === 'assistant') {
-      messages.push({ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: m.content }] });
-    }
-  }
-  messages.push({ type: 'message', role: 'user', content: [{ type: 'input_text', text: userText }] });
-
-  const tools = toolDefs.length > 0
-    ? toolDefs.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters }))
-    : undefined;
-
-  const newMessages: ChatMessage[] = [];
-  const maxSteps = 8;
-
-  for (let step = 0; step < maxSteps; step++) {
-    console.log('[chat:chatgpt] step', step);
-
-    try {
-      const result = await streamChatGPT({
-        apiKey,
-        modelId,
-        messages,
-        systemPrompt,
-        tools,
-        onTextDelta: (text) => callbacks.onTextDelta(text),
-        onToolCall: (tc) => callbacks.onToolCallStart(tc.name),
-      });
-
-      // Add assistant text
-      if (result.text) {
-        newMessages.push({
-          id: `a-${Date.now()}-${step}`,
-          role: 'assistant',
-          content: result.text,
-        });
-        messages.push({ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: result.text }] });
-      }
-
-      // No tool calls — done
-      if (result.finishReason !== 'tool-calls' || result.toolCalls.length === 0) {
-        callbacks.onDone(result.text);
-        return newMessages;
-      }
-
-      // Execute tool calls and add results in Responses API format
-      for (const tc of result.toolCalls) {
-        console.log('[chat:chatgpt] executing tool', tc.name, tc.arguments);
-        let execResult: { success: boolean; data?: unknown; error?: string };
-        if (skillId) {
-          const args = typeof tc.arguments === 'string' ? JSON.parse(tc.arguments) : tc.arguments;
-          execResult = await skillEngine.executeTool(skillId, tc.name, args);
-        } else {
-          execResult = { success: false, error: 'No skill loaded' };
-        }
-        console.log('[chat:chatgpt] tool result', tc.name, JSON.stringify(execResult).slice(0, 200));
-
-        const resultText = JSON.stringify(
-          execResult.success ? execResult.data : { error: execResult.error },
-        );
-        callbacks.onToolCallEnd(tc.name, resultText);
-
-        newMessages.push({
-          id: `t-${Date.now()}-${tc.name}`,
-          role: 'tool',
-          content: resultText,
-          toolName: tc.name,
-        });
-
-        // Add the function call + output to the input for the next turn
-        // This is the Responses API format — NOT a chat message
-        messages.push({
-          type: 'function_call',
-          call_id: tc.id,
-          name: tc.name,
-          arguments: typeof tc.arguments === 'string' ? tc.arguments : JSON.stringify(tc.arguments),
-        });
-        messages.push({
-          type: 'function_call_output',
-          call_id: tc.id,
-          output: resultText,
-        });
-      }
-    } catch (e: any) {
-      console.error('[chat:chatgpt] error', e);
-      callbacks.onError(e.message ?? String(e));
-      return newMessages;
-    }
-  }
-
-  callbacks.onDone('');
-  return newMessages;
-}
-
-// ============================================================================
-// Standard Vercel AI SDK path
-// ============================================================================
-
-async function sendMessageAISDK(
-  userText: string,
-  history: ChatMessage[],
-  skillId: string | null,
-  providerId: string,
-  modelId: string,
-  apiKey: string,
-  callbacks: StreamCallbacks,
-): Promise<ChatMessage[]> {
-  const model = createModel(providerId, modelId, apiKey);
-  const systemPrompt = skillId ? skillEngine.getSystemPrompt(skillId) : undefined;
-  const tools = skillId ? buildAISDKTools(skillId) : {};
-  const hasTools = Object.keys(tools).length > 0;
-
-  const messages: ModelMessage[] = [];
-  if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
-  for (const m of history) {
-    if (m.role === 'user') messages.push({ role: 'user', content: m.content });
-    else if (m.role === 'assistant') messages.push({ role: 'assistant', content: m.content });
-  }
-  messages.push({ role: 'user', content: userText });
-
-  const newMessages: ChatMessage[] = [];
-  const maxSteps = 8;
-
-  for (let step = 0; step < maxSteps; step++) {
-    console.log('[chat:aisdk] step', step, { messageCount: messages.length });
-
-    try {
-      const result = streamText({
-        model,
-        messages,
-        tools: hasTools ? tools : undefined,
-      });
-
-      let fullText = '';
-      for await (const part of result.fullStream) {
-        switch (part.type) {
-          case 'text-delta':
-            fullText += part.text;
-            callbacks.onTextDelta(part.text);
-            break;
-          case 'tool-call':
-            callbacks.onToolCallStart(part.toolName);
-            break;
-          case 'error':
-            console.error('[chat:aisdk] stream error', part.error);
-            callbacks.onError(
-              part.error instanceof Error ? part.error.message : String(part.error),
-            );
-            return newMessages;
-        }
-      }
-
-      if (fullText) {
-        newMessages.push({ id: `a-${Date.now()}-${step}`, role: 'assistant', content: fullText });
-      }
-
-      const responseMessages = (await result.response).messages;
-      messages.push(...responseMessages);
-
-      const finishReason = await result.finishReason;
-      console.log('[chat:aisdk] finishReason', finishReason);
-
-      if (finishReason !== 'tool-calls') {
-        callbacks.onDone(fullText);
-        return newMessages;
-      }
-
-      const toolCalls = await result.toolCalls;
-      for (const tc of toolCalls) {
-        let execResult: { success: boolean; data?: unknown; error?: string };
-        if (skillId) {
-          execResult = await skillEngine.executeTool(skillId, tc.toolName, tc.input as Record<string, unknown>);
-        } else {
-          execResult = { success: false, error: 'No skill loaded' };
-        }
-
-        const resultText = JSON.stringify(
-          execResult.success ? execResult.data : { error: execResult.error },
-        );
-        callbacks.onToolCallEnd(tc.toolName, resultText);
-        newMessages.push({ id: `t-${Date.now()}-${tc.toolName}`, role: 'tool', content: resultText, toolName: tc.toolName });
-
-        messages.push({
-          role: 'tool',
-          content: [{ type: 'tool-result', toolCallId: tc.toolCallId, toolName: tc.toolName, output: { type: 'text', value: resultText } }],
-        });
-      }
-    } catch (e: any) {
-      console.error('[chat:aisdk] error', e);
-      callbacks.onError(e.message ?? String(e));
-      return newMessages;
-    }
-  }
-
-  callbacks.onDone('');
-  return newMessages;
-}
-
-// ============================================================================
-// Public API
-// ============================================================================
 
 /**
  * Send a message and stream the response.
- * Routes to the ChatGPT backend for OAuth tokens, or Vercel AI SDK otherwise.
+ * All providers go through AI SDK streamText() — no branching.
  */
 export async function sendMessage(
   userText: string,
   history: ChatMessage[],
-  skillId: string | null,
+  systemPrompt: string | undefined,
   providerId: string,
   modelId: string,
   callbacks: StreamCallbacks,
-): Promise<ChatMessage[]> {
+): Promise<void> {
   const apiKey = await authManager.getApiKey(providerId);
   if (!apiKey) {
     callbacks.onError('Not signed in. Go to Settings to connect a provider.');
-    return [];
+    return;
   }
 
-  console.log('[chat] sendMessage', { providerId, modelId });
+  const model = createModel(providerId, modelId, apiKey);
 
-  // ChatGPT OAuth tokens (JWT) use a different backend API
-  if (providerId === 'openai-codex') {
-    return sendMessageChatGPT(userText, history, skillId, modelId, apiKey, callbacks);
+  // Build messages from history
+  const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+  for (const m of history) {
+    messages.push({ role: m.role, content: m.content });
   }
+  messages.push({ role: 'user', content: userText });
 
-  // All other providers use the standard Vercel AI SDK
-  return sendMessageAISDK(userText, history, skillId, providerId, modelId, apiKey, callbacks);
+  try {
+    const result = streamText({
+      model,
+      system: systemPrompt,
+      messages,
+    });
+
+    let fullText = '';
+    for await (const part of result.fullStream) {
+      switch (part.type) {
+        case 'text-delta':
+          fullText += part.textDelta;
+          callbacks.onTextDelta(part.textDelta);
+          break;
+        case 'error':
+          callbacks.onError(
+            part.error instanceof Error ? part.error.message : String(part.error),
+          );
+          return;
+      }
+    }
+
+    callbacks.onDone(fullText);
+  } catch (e: any) {
+    callbacks.onError(e.message ?? String(e));
+  }
 }
