@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "RN AI Kit Example",
+    "slug": "rn-ai-kit-example",
+    "version": "0.1.0",
+    "scheme": "rn-ai-kit",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rnaikit.example"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "platforms": ["ios", "android"],
+    "plugins": ["expo-router", "expo-secure-store"]
+  }
+}

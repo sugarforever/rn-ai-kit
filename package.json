@@ -1,0 +1,17 @@
+{
+  "name": "rn-ai-kit",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "test": "jest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react-dom": "^19.2.5",
+    "react-native-web": "^0.21.2"
+  }
+}

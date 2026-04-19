@@ -1,0 +1,1 @@
+export { anthropicProvider } from './registry';

@@ -1,0 +1,1 @@
+export { googleAntigravityProvider } from './registry';

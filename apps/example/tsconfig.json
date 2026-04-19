@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@rn-ai-kit/auth": ["../../packages/auth/src"],
+      "@rn-ai-kit/chatgpt-provider": ["../../packages/chatgpt-provider/src"]
+    }
+  },
+  "include": ["src"]
+}

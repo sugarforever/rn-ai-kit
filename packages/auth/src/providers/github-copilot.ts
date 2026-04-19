@@ -1,0 +1,1 @@
+export { githubCopilotProvider } from './registry';
