@@ -24,7 +24,7 @@ export default function SessionsScreen() {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Rename',
-          onPress: (value) => {
+          onPress: (value?: string) => {
             if (value && value.trim()) renameSession(id, value.trim());
           },
         },
