@@ -14,7 +14,8 @@
     "baseUrl": ".",
     "paths": {
       "@rn-ai-kit/auth": ["packages/auth/src"],
-      "@rn-ai-kit/chatgpt-provider": ["packages/chatgpt-provider/src"]
+      "@rn-ai-kit/chatgpt-provider": ["packages/chatgpt-provider/src"],
+      "@rn-ai-kit/sessions": ["packages/sessions/src"]
     }
   },
   "exclude": ["node_modules", "dist"]
