@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   FlatList,
@@ -7,8 +7,13 @@ import {
   Platform,
   StyleSheet,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  useSession,
+  useSessionStore,
+  titleFromFirstMessage,
+} from '@rn-ai-kit/sessions';
 import { MessageBubble } from '../components/MessageBubble';
 import { ChatInput } from '../components/ChatInput';
 import { sendMessage, type ChatMessage } from '../lib/chat';
@@ -25,14 +30,25 @@ const DEFAULT_MODELS: Record<string, string> = {
 
 const SYSTEM_PROMPT = `You are a helpful assistant. Format your responses using Markdown for readability.`;
 
+function partsToText(parts: Array<{ type: string; text?: string }>): string {
+  return parts
+    .filter((p) => p.type === 'text' && typeof p.text === 'string')
+    .map((p) => p.text as string)
+    .join('');
+}
+
 export default function ChatScreen() {
   const router = useRouter();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const store = useSessionStore();
+  const params = useLocalSearchParams<{ sessionId?: string }>();
+  const sessionId = params.sessionId ?? null;
+
+  const { messages: persisted, session, updateSession } = useSession(sessionId);
   const [activeProvider, setActiveProvider] = useState<{ id: string; model: string } | null>(null);
+  const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
-  // Detect which provider is connected
   useEffect(() => {
     (async () => {
       const providers = authManager.listProviders();
@@ -45,77 +61,99 @@ export default function ChatScreen() {
       }
       setActiveProvider(null);
     })();
-  }, [messages.length === 0]);
+  }, []);
+
+  const displayMessages = useMemo<ChatMessage[]>(() => {
+    const rehydrated: ChatMessage[] = persisted
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .map((m) => ({
+        id: m.id,
+        role: m.role as 'user' | 'assistant',
+        content: partsToText(m.parts as any),
+      }));
+    return streamingMessage ? [...rehydrated, streamingMessage] : rehydrated;
+  }, [persisted, streamingMessage]);
 
   const handleSend = useCallback(
     async (text: string) => {
       if (isStreaming) return;
       if (!activeProvider) {
-        setMessages((prev) => [
-          ...prev,
-          { id: `u-${Date.now()}`, role: 'user', content: text },
-          {
-            id: `e-${Date.now()}`,
-            role: 'assistant',
-            content: 'No provider connected. Go to **Settings** to sign in or add an API key.',
-          },
-        ]);
+        setStreamingMessage({
+          id: `err-${Date.now()}`,
+          role: 'assistant',
+          content: 'No provider connected. Go to **Settings** to sign in or add an API key.',
+        });
         return;
       }
 
-      const userMsg: ChatMessage = { id: `u-${Date.now()}`, role: 'user', content: text };
-      setMessages((prev) => [...prev, userMsg]);
-      setIsStreaming(true);
+      let currentSessionId = sessionId;
+      if (!currentSessionId) {
+        const s = await store.createSession({
+          title: titleFromFirstMessage(text),
+          providerId: activeProvider.id,
+          modelId: activeProvider.model,
+        });
+        currentSessionId = s.id;
+        router.setParams({ sessionId: s.id });
+      } else if (session && !session.providerId) {
+        await updateSession({ providerId: activeProvider.id, modelId: activeProvider.model });
+      }
 
+      await store.appendMessage(currentSessionId, {
+        role: 'user',
+        parts: [{ type: 'text', text } as any],
+      });
+
+      setIsStreaming(true);
       const streamingId = `s-${Date.now()}`;
       let streamedText = '';
+      setStreamingMessage({ id: streamingId, role: 'assistant', content: '', isStreaming: true });
 
-      setMessages((prev) => [
-        ...prev,
-        { id: streamingId, role: 'assistant', content: '', isStreaming: true },
-      ]);
+      const historyForModel: ChatMessage[] = persisted
+        .filter((m) => m.role === 'user' || m.role === 'assistant')
+        .map((m) => ({
+          id: m.id,
+          role: m.role as 'user' | 'assistant',
+          content: partsToText(m.parts as any),
+        }));
 
       await sendMessage(
         text,
-        [...messages, userMsg],
+        historyForModel,
         SYSTEM_PROMPT,
         activeProvider.id,
         activeProvider.model,
         {
           onTextDelta: (delta) => {
             streamedText += delta;
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === streamingId ? { ...m, content: streamedText } : m,
-              ),
+            setStreamingMessage((prev) =>
+              prev && prev.id === streamingId
+                ? { ...prev, content: streamedText }
+                : prev,
             );
           },
-          onDone: (fullText) => {
-            setMessages((prev) =>
-              prev
-                .filter((m) => m.id !== streamingId || fullText)
-                .map((m) =>
-                  m.id === streamingId
-                    ? { ...m, content: fullText, isStreaming: false }
-                    : m,
-                ),
-            );
+          onDone: async (_fullText, parts) => {
+            if (parts.length > 0) {
+              await store.appendMessage(currentSessionId!, {
+                role: 'assistant',
+                parts,
+              });
+            }
+            setStreamingMessage(null);
           },
-          onError: (error) => {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === streamingId
-                  ? { ...m, content: `Something went wrong: ${error}`, isStreaming: false }
-                  : m,
-              ),
-            );
+          onError: (errMsg) => {
+            setStreamingMessage({
+              id: streamingId,
+              role: 'assistant',
+              content: `Something went wrong: ${errMsg}`,
+            });
           },
         },
       );
 
       setIsStreaming(false);
     },
-    [messages, isStreaming, activeProvider],
+    [isStreaming, activeProvider, sessionId, store, session, updateSession, persisted, router],
   );
 
   return (
@@ -127,7 +165,7 @@ export default function ChatScreen() {
       >
         <FlatList
           ref={flatListRef}
-          data={messages}
+          data={displayMessages}
           keyExtractor={(m) => m.id}
           renderItem={({ item }) => <MessageBubble message={item} />}
           contentContainerStyle={styles.messageList}
@@ -168,28 +206,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
     marginTop: 140,
   },
-  emptyIcon: {
-    fontSize: 32,
-    color: '#D4C9A8',
-    marginBottom: 16,
-  },
+  emptyIcon: { fontSize: 32, color: '#D4C9A8', marginBottom: 16 },
   emptyTitle: {
     fontSize: 28,
     fontWeight: '700',
     color: '#1A1A1A',
-    letterSpacing: -0.8,
     marginBottom: 6,
   },
   emptySubtitle: {
     fontSize: 16,
     color: '#8C8577',
-    letterSpacing: -0.2,
     marginBottom: 24,
   },
   emptyAction: {
     fontSize: 15,
     color: '#8B6914',
     fontWeight: '500',
-    letterSpacing: -0.2,
   },
 });
