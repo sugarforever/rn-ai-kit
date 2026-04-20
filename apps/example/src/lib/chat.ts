@@ -1,13 +1,13 @@
-/**
- * Chat module — unified streaming via AI SDK for all providers.
- */
 import { streamText } from 'ai';
+import type { UIMessage } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createChatGPT } from '@rn-ai-kit/chatgpt-provider';
 import { fetch as expoFetch } from 'expo/fetch';
 import { authManager } from './auth';
+
+type UIMessagePart = UIMessage['parts'][number];
 
 export interface ChatMessage {
   id: string;
@@ -18,11 +18,10 @@ export interface ChatMessage {
 
 interface StreamCallbacks {
   onTextDelta: (text: string) => void;
-  onDone: (fullText: string) => void;
+  onDone: (fullText: string, parts: UIMessagePart[]) => void;
   onError: (error: string) => void;
 }
 
-// Expo/fetch for React Native streaming (response.body) support
 const fetch = expoFetch as unknown as typeof globalThis.fetch;
 
 function createModel(providerId: string, modelId: string, apiKey: string) {
@@ -41,10 +40,6 @@ function createModel(providerId: string, modelId: string, apiKey: string) {
   }
 }
 
-/**
- * Send a message and stream the response.
- * All providers go through AI SDK streamText() — no branching.
- */
 export async function sendMessage(
   userText: string,
   history: ChatMessage[],
@@ -61,7 +56,6 @@ export async function sendMessage(
 
   const model = createModel(providerId, modelId, apiKey);
 
-  // Build messages from history
   const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
   for (const m of history) {
     messages.push({ role: m.role, content: m.content });
@@ -69,11 +63,7 @@ export async function sendMessage(
   messages.push({ role: 'user', content: userText });
 
   try {
-    const result = streamText({
-      model,
-      system: systemPrompt,
-      messages,
-    });
+    const result = streamText({ model, system: systemPrompt, messages });
 
     let fullText = '';
     for await (const part of result.fullStream) {
@@ -90,7 +80,10 @@ export async function sendMessage(
       }
     }
 
-    callbacks.onDone(fullText);
+    const parts: UIMessagePart[] = fullText
+      ? [{ type: 'text', text: fullText } as UIMessagePart]
+      : [];
+    callbacks.onDone(fullText, parts);
   } catch (e: any) {
     callbacks.onError(e.message ?? String(e));
   }
