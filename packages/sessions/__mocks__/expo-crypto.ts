@@ -1,3 +1,5 @@
+export {};
+
 const nodeCrypto = require('crypto');
 
 module.exports = {
