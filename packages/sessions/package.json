@@ -31,6 +31,7 @@
     "preset": "ts-jest",
     "testEnvironment": "node",
     "roots": ["<rootDir>/__tests__"],
+    "testMatch": ["<rootDir>/__tests__/**/*.test.{ts,tsx}"],
     "moduleNameMapper": {
       "^expo-crypto$": "<rootDir>/__mocks__/expo-crypto.ts",
       "^expo-sqlite$": "<rootDir>/__mocks__/expo-sqlite.ts"
