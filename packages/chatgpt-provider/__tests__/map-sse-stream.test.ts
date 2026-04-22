@@ -98,19 +98,18 @@ describe('mapSSEStream', () => {
     ]);
   });
 
-  it('maps partial_image events to file parts', async () => {
-    const b64a = 'AAAA';
-    const b64b = 'BBBB';
+  it('ignores partial_image events to avoid duplicate images', async () => {
+    const b64 = 'FINAL';
     const body = sseStream([
-      `event: response.image_generation_call.partial_image\ndata: {"type":"response.image_generation_call.partial_image","partial_image_index":0,"partial_image_b64":"${b64a}"}\n\n`,
-      `event: response.image_generation_call.partial_image\ndata: {"type":"response.image_generation_call.partial_image","partial_image_index":1,"partial_image_b64":"${b64b}"}\n\n`,
+      `event: response.image_generation_call.partial_image\ndata: {"type":"response.image_generation_call.partial_image","partial_image_index":0,"partial_image_b64":"AAAA"}\n\n`,
+      `event: response.image_generation_call.partial_image\ndata: {"type":"response.image_generation_call.partial_image","partial_image_index":1,"partial_image_b64":"BBBB"}\n\n`,
+      `event: response.output_item.done\ndata: {"type":"response.output_item.done","output_index":0,"item":{"type":"image_generation_call","id":"ig_1","status":"completed","result":"${b64}"}}\n\n`,
       'event: response.completed\ndata: {"type":"response.completed","response":{"status":"completed","usage":{"input_tokens":1,"output_tokens":1}}}\n\n',
     ]);
     const parts = await collectParts(mapSSEStream(body));
 
     expect(parts).toEqual([
-      { type: 'file', mimeType: 'image/png', data: b64a },
-      { type: 'file', mimeType: 'image/png', data: b64b },
+      { type: 'file', mimeType: 'image/png', data: b64 },
       { type: 'finish', finishReason: 'stop', usage: { promptTokens: 1, completionTokens: 1 } },
     ]);
   });
