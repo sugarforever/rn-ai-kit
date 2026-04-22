@@ -1,12 +1,25 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, Animated, Image } from 'react-native';
 import Markdown from 'react-native-marked';
 import type { ChatMessage } from '../lib/chat';
+
+// gpt-5.4 often references generated images via markdown with an
+// `attachment://` URL (e.g. ![promo](attachment://coffee.png)). RN's image
+// loader doesn't understand that scheme and throws, so strip these tokens
+// before rendering — the real image is shown separately from message.images.
+const UNSUPPORTED_IMAGE_RE = /!\[[^\]]*\]\((?:attachment|sandbox|file):[^)]+\)/g;
+function sanitizeMarkdown(text: string): string {
+  return text.replace(UNSUPPORTED_IMAGE_RE, '').replace(/\n{3,}/g, '\n\n').trim();
+}
 
 export function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user';
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(8)).current;
+  const safeContent = useMemo(
+    () => (message.content ? sanitizeMarkdown(message.content) : ''),
+    [message.content],
+  );
 
   useEffect(() => {
     Animated.parallel([
@@ -64,9 +77,9 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
         <View style={styles.assistantContent}>
           <View style={styles.accentBar} />
           <View style={styles.markdownWrap}>
-            {message.content ? (
+            {safeContent ? (
               <Markdown
-                value={message.content}
+                value={safeContent}
                 flatListProps={{
                   scrollEnabled: false,
                   style: { backgroundColor: 'transparent' },
