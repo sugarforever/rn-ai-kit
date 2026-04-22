@@ -63,6 +63,7 @@ function createModel(
         fetch,
         installationId: opts.installationId,
         conversationId: opts.conversationId,
+        debug: __DEV__,
       })(modelId);
     default:
       return createOpenAI({ apiKey, fetch })(modelId);
