@@ -55,9 +55,7 @@ describe('AuthManager', () => {
 
   it('listProviders returns all available providers', () => {
     const providers = auth.listProviders();
-    expect(providers.length).toBe(5);
-    expect(providers.map((p) => p.id)).toContain('anthropic');
-    expect(providers.map((p) => p.id)).toContain('github-copilot');
+    expect(providers.map((p) => p.id)).toEqual(['anthropic', 'openai-codex']);
   });
 
   it('getApiKey returns stored key', async () => {

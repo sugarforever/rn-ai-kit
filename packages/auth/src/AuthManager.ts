@@ -3,13 +3,15 @@ import { SecureStoreBackend, type StoredCredential } from './SecureStoreBackend'
 import { OAuthMobileAdapter } from './OAuthMobileAdapter';
 import {
   type OAuthProviderConfig,
-  anthropicProvider, openaiCodexProvider, githubCopilotProvider,
-  googleGeminiProvider, googleAntigravityProvider,
+  anthropicProvider, openaiCodexProvider,
+  // githubCopilotProvider,
+  // googleGeminiProvider, googleAntigravityProvider,
 } from './providers';
 
 const PROVIDERS: OAuthProviderConfig[] = [
-  anthropicProvider, openaiCodexProvider, githubCopilotProvider,
-  googleGeminiProvider, googleAntigravityProvider,
+  anthropicProvider, openaiCodexProvider,
+  // githubCopilotProvider,
+  // googleGeminiProvider, googleAntigravityProvider,
 ];
 
 const DEVICE_CODE_MAX_POLLS = 60; // ~5 minutes at 5s intervals
