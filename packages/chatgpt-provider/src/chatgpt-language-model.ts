@@ -64,19 +64,30 @@ export class ChatGPTLanguageModel implements LanguageModelV1 {
 
     if (instructions) body.instructions = instructions;
 
-    // Map AI SDK tool definitions to Responses API format
+    // Map AI SDK tool definitions to Responses API format.
+    // Function tools are wrapped as { type: 'function', ... }.
+    // Provider-defined built-in tools (e.g. chatgpt.image_generation) are
+    // passed through with their args spread as the tool config the backend expects.
     if (options.mode.type === 'regular' && options.mode.tools && options.mode.tools.length > 0) {
-      body.tools = options.mode.tools
-        .filter((t): t is { type: 'function'; name: string; description?: string; parameters: unknown } => t.type === 'function')
-        .map((t) => ({
-          type: 'function',
-          name: t.name,
-          description: t.description,
-          parameters: t.parameters,
-          strict: null,
-        }));
-      body.tool_choice = 'auto';
-      body.parallel_tool_calls = true;
+      const mapped: Array<Record<string, unknown>> = [];
+      for (const t of options.mode.tools) {
+        if (t.type === 'function') {
+          mapped.push({
+            type: 'function',
+            name: t.name,
+            description: t.description,
+            parameters: t.parameters,
+            strict: null,
+          });
+        } else if (t.type === 'provider-defined' && t.id === 'chatgpt.image_generation') {
+          mapped.push({ type: 'image_generation', ...t.args });
+        }
+      }
+      if (mapped.length > 0) {
+        body.tools = mapped;
+        body.tool_choice = 'auto';
+        body.parallel_tool_calls = true;
+      }
     }
 
     // Note: The ChatGPT backend API does not support temperature, maxTokens,

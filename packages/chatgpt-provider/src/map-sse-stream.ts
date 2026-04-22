@@ -107,6 +107,25 @@ export function mapSSEStream(body: ReadableStream<Uint8Array>): ReadableStream<L
             pendingTools.delete(event.output_index);
           }
 
+          // Image generation — partial image during streaming
+          if (type === 'response.image_generation_call.partial_image') {
+            const b64 = event.partial_image_b64;
+            if (typeof b64 === 'string' && b64.length > 0) {
+              controller.enqueue({ type: 'file', mimeType: 'image/png', data: b64 });
+            }
+          }
+
+          // Image generation — final image
+          if (
+            type === 'response.output_item.done' &&
+            event.item?.type === 'image_generation_call'
+          ) {
+            const b64 = event.item?.result;
+            if (typeof b64 === 'string' && b64.length > 0) {
+              controller.enqueue({ type: 'file', mimeType: 'image/png', data: b64 });
+            }
+          }
+
           // Response completed
           if (type === 'response.completed' || type === 'response.done') {
             const usage = event.response?.usage;
