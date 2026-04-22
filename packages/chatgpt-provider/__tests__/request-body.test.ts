@@ -43,9 +43,29 @@ describe('ChatGPTLanguageModel.buildRequestBody (via captured fetch)', () => {
       // expected — fake fetch returns 500
     }
     expect(captured.tools).toEqual([
-      { type: 'image_generation', quality: 'high', size: '1024x1024' },
+      { type: 'image_generation', output_format: 'png', quality: 'high', size: '1024x1024' },
     ]);
     expect(captured.tool_choice).toBe('auto');
+  });
+
+  it('defaults output_format to png to match Codex CLI contract', async () => {
+    let captured: any;
+    const fakeFetch = async (_url: string, init: RequestInit) => {
+      captured = JSON.parse(init.body as string);
+      return new Response('', { status: 500 });
+    };
+    const model = new ChatGPTLanguageModel('gpt-5.4', {
+      apiKey: makeToken(),
+      fetch: fakeFetch as any,
+    });
+    try {
+      await model.doGenerate(
+        buildOptions([{ ...imageGenerationTool(), name: 'image_generation' } as any]),
+      );
+    } catch {
+      // expected
+    }
+    expect(captured.tools).toEqual([{ type: 'image_generation', output_format: 'png' }]);
   });
 
   it('mixes function and built-in tools', async () => {
@@ -75,6 +95,6 @@ describe('ChatGPTLanguageModel.buildRequestBody (via captured fetch)', () => {
     }
     expect(captured.tools).toHaveLength(2);
     expect(captured.tools[0].type).toBe('function');
-    expect(captured.tools[1]).toEqual({ type: 'image_generation' });
+    expect(captured.tools[1]).toEqual({ type: 'image_generation', output_format: 'png' });
   });
 });
