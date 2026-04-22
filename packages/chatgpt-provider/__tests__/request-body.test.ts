@@ -68,6 +68,44 @@ describe('ChatGPTLanguageModel.buildRequestBody (via captured fetch)', () => {
     expect(captured.tools).toEqual([{ type: 'image_generation', output_format: 'png' }]);
   });
 
+  it('sends reasoning.effort=medium for gpt-5.x models', async () => {
+    let captured: any;
+    const fakeFetch = async (_url: string, init: RequestInit) => {
+      captured = JSON.parse(init.body as string);
+      return new Response('', { status: 500 });
+    };
+    const model = new ChatGPTLanguageModel('gpt-5.4', {
+      apiKey: makeToken(),
+      fetch: fakeFetch as any,
+    });
+    try {
+      await model.doGenerate(buildOptions([]));
+    } catch {
+      // expected
+    }
+    expect(captured.reasoning).toEqual({ effort: 'medium', summary: 'auto' });
+    expect(captured.include).toEqual(['reasoning.encrypted_content']);
+  });
+
+  it('does not send reasoning for non-gpt-5 models', async () => {
+    let captured: any;
+    const fakeFetch = async (_url: string, init: RequestInit) => {
+      captured = JSON.parse(init.body as string);
+      return new Response('', { status: 500 });
+    };
+    const model = new ChatGPTLanguageModel('gpt-4o', {
+      apiKey: makeToken(),
+      fetch: fakeFetch as any,
+    });
+    try {
+      await model.doGenerate(buildOptions([]));
+    } catch {
+      // expected
+    }
+    expect(captured.reasoning).toBeUndefined();
+    expect(captured.include).toBeUndefined();
+  });
+
   it('mixes function and built-in tools', async () => {
     let captured: any;
     const fakeFetch = async (_url: string, init: RequestInit) => {

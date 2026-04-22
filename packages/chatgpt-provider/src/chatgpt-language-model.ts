@@ -93,6 +93,14 @@ export class ChatGPTLanguageModel implements LanguageModelV1 {
     // Note: The ChatGPT backend API does not support temperature, maxTokens,
     // topP, or other standard OpenAI API parameters. They are silently omitted.
 
+    // gpt-5.x models are agentic/reasoning models. Without `reasoning` set,
+    // they fall back to a chat-like mode and describe actions instead of
+    // invoking tools. Codex CLI sends effort: "medium" by default.
+    if (/^gpt-5(\.|-|$)/.test(this.modelId)) {
+      body.reasoning = { effort: 'medium', summary: 'auto' };
+      body.include = ['reasoning.encrypted_content'];
+    }
+
     return body;
   }
 
