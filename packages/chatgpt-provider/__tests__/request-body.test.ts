@@ -124,7 +124,7 @@ describe('ChatGPTLanguageModel.buildRequestBody (via captured fetch)', () => {
     expect(captured.prompt_cache_key).toBe('sess-abc-123');
   });
 
-  it('sends x-codex-installation-id header when installationId is configured', async () => {
+  it('identifies as rn-ai-kit via originator and User-Agent', async () => {
     let capturedHeaders: any;
     const fakeFetch = async (_url: string, init: RequestInit) => {
       capturedHeaders = init.headers;
@@ -133,14 +133,15 @@ describe('ChatGPTLanguageModel.buildRequestBody (via captured fetch)', () => {
     const model = new ChatGPTLanguageModel('gpt-5.4', {
       apiKey: makeToken(),
       fetch: fakeFetch as any,
-      installationId: 'install-uuid-xyz',
     });
     try {
       await model.doGenerate(buildOptions([]));
     } catch {
       // expected
     }
-    expect(capturedHeaders['x-codex-installation-id']).toBe('install-uuid-xyz');
+    expect(capturedHeaders['originator']).toBe('rn-ai-kit');
+    expect(capturedHeaders['User-Agent']).toContain('rn-ai-kit');
+    expect(capturedHeaders['x-codex-installation-id']).toBeUndefined();
   });
 
   it('does not send reasoning for non-gpt-5 models', async () => {
