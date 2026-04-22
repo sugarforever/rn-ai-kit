@@ -87,6 +87,62 @@ describe('ChatGPTLanguageModel.buildRequestBody (via captured fetch)', () => {
     expect(captured.include).toEqual(['reasoning.encrypted_content']);
   });
 
+  it('sends text.verbosity=low for gpt-5.x models', async () => {
+    let captured: any;
+    const fakeFetch = async (_url: string, init: RequestInit) => {
+      captured = JSON.parse(init.body as string);
+      return new Response('', { status: 500 });
+    };
+    const model = new ChatGPTLanguageModel('gpt-5.4', {
+      apiKey: makeToken(),
+      fetch: fakeFetch as any,
+    });
+    try {
+      await model.doGenerate(buildOptions([]));
+    } catch {
+      // expected
+    }
+    expect(captured.text).toEqual({ verbosity: 'low' });
+  });
+
+  it('sends prompt_cache_key from conversationId config', async () => {
+    let captured: any;
+    const fakeFetch = async (_url: string, init: RequestInit) => {
+      captured = JSON.parse(init.body as string);
+      return new Response('', { status: 500 });
+    };
+    const model = new ChatGPTLanguageModel('gpt-5.4', {
+      apiKey: makeToken(),
+      fetch: fakeFetch as any,
+      conversationId: 'sess-abc-123',
+    });
+    try {
+      await model.doGenerate(buildOptions([]));
+    } catch {
+      // expected
+    }
+    expect(captured.prompt_cache_key).toBe('sess-abc-123');
+  });
+
+  it('sends x-codex-installation-id header when installationId is configured', async () => {
+    let capturedHeaders: any;
+    const fakeFetch = async (_url: string, init: RequestInit) => {
+      capturedHeaders = init.headers;
+      return new Response('', { status: 500 });
+    };
+    const model = new ChatGPTLanguageModel('gpt-5.4', {
+      apiKey: makeToken(),
+      fetch: fakeFetch as any,
+      installationId: 'install-uuid-xyz',
+    });
+    try {
+      await model.doGenerate(buildOptions([]));
+    } catch {
+      // expected
+    }
+    expect(capturedHeaders['x-codex-installation-id']).toBe('install-uuid-xyz');
+  });
+
   it('does not send reasoning for non-gpt-5 models', async () => {
     let captured: any;
     const fakeFetch = async (_url: string, init: RequestInit) => {

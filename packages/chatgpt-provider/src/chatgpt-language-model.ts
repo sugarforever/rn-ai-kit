@@ -23,6 +23,8 @@ export interface ChatGPTLanguageModelConfig {
   apiKey: string;
   baseUrl?: string;
   fetch?: typeof globalThis.fetch;
+  installationId?: string;
+  conversationId?: string;
 }
 
 export class ChatGPTLanguageModel implements LanguageModelV1 {
@@ -48,7 +50,7 @@ export class ChatGPTLanguageModel implements LanguageModelV1 {
     // User-Agent so the backend treats us as a first-party client (see
     // codex-rs/login/src/auth/default_client.rs:121 is_first_party_originator
     // and :132 get_codex_user_agent).
-    return {
+    const headers: Record<string, string> = {
       'Authorization': `Bearer ${this.config.apiKey}`,
       'chatgpt-account-id': accountId,
       'OpenAI-Beta': 'responses=experimental',
@@ -57,6 +59,10 @@ export class ChatGPTLanguageModel implements LanguageModelV1 {
       'Accept': 'text/event-stream',
       'Content-Type': 'application/json',
     };
+    if (this.config.installationId) {
+      headers['x-codex-installation-id'] = this.config.installationId;
+    }
+    return headers;
   }
 
   private buildRequestBody(options: LanguageModelV1CallOptions): Record<string, unknown> {
@@ -101,10 +107,16 @@ export class ChatGPTLanguageModel implements LanguageModelV1 {
 
     // gpt-5.x models are agentic/reasoning models. Without `reasoning` set,
     // they fall back to a chat-like mode and describe actions instead of
-    // invoking tools. Codex CLI sends effort: "medium" by default.
+    // invoking tools. Codex CLI sends effort: "medium" by default, together
+    // with text.verbosity: "low" to keep responses action-oriented.
     if (/^gpt-5(\.|-|$)/.test(this.modelId)) {
       body.reasoning = { effort: 'medium', summary: 'auto' };
       body.include = ['reasoning.encrypted_content'];
+      body.text = { verbosity: 'low' };
+    }
+
+    if (this.config.conversationId) {
+      body.prompt_cache_key = this.config.conversationId;
     }
 
     return body;
