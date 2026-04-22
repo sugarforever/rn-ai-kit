@@ -26,26 +26,47 @@ A React Native toolkit for integrating AI providers into Expo apps — with OAut
 npm install @rn-ai-kit/auth @rn-ai-kit/chatgpt-provider ai
 ```
 
-Auth:
+Auth — most providers just need the provider id:
 
 ```ts
 import { AuthManager } from '@rn-ai-kit/auth';
 
 const auth = new AuthManager();
 
-// Sign in with OAuth
-await auth.login('openai-codex', async () => {
-  // Optional callback to prompt the user to paste a redirect URL
-  // (needed for localhost redirects on some providers)
-  return userPastedUrl;
-});
+// Opens an in-app browser, handles the redirect back via deep link.
+await auth.login('anthropic');
 
-// Or save a raw API key
+// Or save a raw API key instead of OAuth:
 await auth.setApiKey('anthropic', 'sk-ant-...');
 
-// Later
-const token = await auth.getApiKey('openai-codex');
+// Later:
+const token = await auth.getApiKey('anthropic');
 ```
+
+Auth — `openai-codex` needs a paste-back callback. OpenAI's ChatGPT OAuth app uses a `http://localhost:1455/auth/callback` redirect URI that mobile browsers can't follow (they show "This site can't be reached"). The user has to copy the URL from the browser address bar and paste it back. The SDK invokes the `onNeedManualCode` callback you provide to collect it:
+
+```ts
+import { Alert } from 'react-native';
+import { AuthManager } from '@rn-ai-kit/auth';
+
+const auth = new AuthManager();
+
+await auth.login('openai-codex', () =>
+  new Promise<string | null>((resolve) => {
+    Alert.prompt(
+      'Paste authorization URL',
+      'After signing in, the browser will show an error page. Copy the full URL from the address bar and paste it here.',
+      [
+        { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
+        { text: 'Submit', onPress: (text) => resolve(text ?? null) },
+      ],
+      'plain-text',
+    );
+  }),
+);
+```
+
+(See `apps/example/src/app/settings.tsx` for the complete pattern the example app ships with.)
 
 ChatGPT provider with AI SDK:
 
