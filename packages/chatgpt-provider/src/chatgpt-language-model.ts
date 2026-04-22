@@ -42,12 +42,16 @@ export class ChatGPTLanguageModel implements LanguageModelV1 {
 
   private buildHeaders(): Record<string, string> {
     const accountId = extractAccountId(this.config.apiKey);
+    // The ChatGPT backend gates built-in tool availability (image_generation,
+    // etc.) on the originator value. Unknown originators have tools stripped
+    // during backend normalization, so the model never sees them. Identify as
+    // codex_cli_rs to get the same entitlement Codex CLI has.
     return {
       'Authorization': `Bearer ${this.config.apiKey}`,
       'chatgpt-account-id': accountId,
       'OpenAI-Beta': 'responses=experimental',
-      'originator': 'rn-ai-kit',
-      'User-Agent': 'rn-ai-kit (mobile)',
+      'originator': 'codex_cli_rs',
+      'User-Agent': 'codex_cli_rs',
       'Accept': 'text/event-stream',
       'Content-Type': 'application/json',
     };
