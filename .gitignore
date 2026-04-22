@@ -7,3 +7,4 @@ android/
 .env
 .env.local
 .worktrees/
+docs/superpowers/
