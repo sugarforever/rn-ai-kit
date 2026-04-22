@@ -107,6 +107,25 @@ export function mapSSEStream(body: ReadableStream<Uint8Array>): ReadableStream<L
             pendingTools.delete(event.output_index);
           }
 
+          // Image generation — partial image during streaming.
+          // Intentionally not emitted: the backend streams 1-3 near-final
+          // previews plus the completed result. Showing each partial as a
+          // separate <Image> produces duplicates; we only emit the final.
+          // If you want a progressive preview, diff the file parts in the
+          // UI instead of piping every partial into the stream.
+          // if (type === 'response.image_generation_call.partial_image') { ... }
+
+          // Image generation — final image
+          if (
+            type === 'response.output_item.done' &&
+            event.item?.type === 'image_generation_call'
+          ) {
+            const b64 = event.item?.result;
+            if (typeof b64 === 'string' && b64.length > 0) {
+              controller.enqueue({ type: 'file', mimeType: 'image/png', data: b64 });
+            }
+          }
+
           // Response completed
           if (type === 'response.completed' || type === 'response.done') {
             const usage = event.response?.usage;

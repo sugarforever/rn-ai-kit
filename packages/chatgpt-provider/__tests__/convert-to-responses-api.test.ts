@@ -79,6 +79,66 @@ describe('convertToResponsesAPI', () => {
     expect(result.input[2]).toEqual({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'How are you?' }] });
   });
 
+  it('converts user image (Uint8Array) to input_image data URL', () => {
+    const bytes = new Uint8Array([1, 2, 3, 4]);
+    const prompt: LanguageModelV1Prompt = [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'what is this?' },
+          { type: 'image', image: bytes, mimeType: 'image/jpeg' },
+        ],
+      },
+    ];
+    const result = convertToResponsesAPI(prompt);
+    expect(result.input).toEqual([
+      {
+        type: 'message',
+        role: 'user',
+        content: [
+          { type: 'input_text', text: 'what is this?' },
+          { type: 'input_image', image_url: 'data:image/jpeg;base64,AQIDBA==', detail: 'high' },
+        ],
+      },
+    ]);
+  });
+
+  it('converts user image (URL) to input_image with url.toString()', () => {
+    const prompt: LanguageModelV1Prompt = [
+      {
+        role: 'user',
+        content: [
+          { type: 'image', image: new URL('https://example.com/cat.png') },
+        ],
+      },
+    ];
+    const result = convertToResponsesAPI(prompt);
+    expect(result.input).toEqual([
+      {
+        type: 'message',
+        role: 'user',
+        content: [
+          { type: 'input_image', image_url: 'https://example.com/cat.png', detail: 'high' },
+        ],
+      },
+    ]);
+  });
+
+  it('defaults mimeType to image/png for Uint8Array images without mimeType', () => {
+    const prompt: LanguageModelV1Prompt = [
+      {
+        role: 'user',
+        content: [{ type: 'image', image: new Uint8Array([255, 216]) }],
+      },
+    ];
+    const result = convertToResponsesAPI(prompt);
+    expect(result.input[0].content[0]).toEqual({
+      type: 'input_image',
+      image_url: 'data:image/png;base64,/9g=',
+      detail: 'high',
+    });
+  });
+
   it('handles assistant message with mixed text and tool calls', () => {
     const prompt: LanguageModelV1Prompt = [
       {

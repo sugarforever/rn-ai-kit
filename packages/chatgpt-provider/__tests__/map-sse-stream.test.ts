@@ -83,6 +83,37 @@ describe('mapSSEStream', () => {
     ]);
   });
 
+  it('maps image_generation_call completion to a file part', async () => {
+    const b64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const body = sseStream([
+      `event: response.output_item.added\ndata: {"type":"response.output_item.added","output_index":0,"item":{"type":"image_generation_call","id":"ig_1","status":"in_progress"}}\n\n`,
+      `event: response.output_item.done\ndata: {"type":"response.output_item.done","output_index":0,"item":{"type":"image_generation_call","id":"ig_1","status":"completed","result":"${b64}","revised_prompt":"A gray tabby cat"}}\n\n`,
+      'event: response.completed\ndata: {"type":"response.completed","response":{"status":"completed","usage":{"input_tokens":10,"output_tokens":0}}}\n\n',
+    ]);
+    const parts = await collectParts(mapSSEStream(body));
+
+    expect(parts).toEqual([
+      { type: 'file', mimeType: 'image/png', data: b64 },
+      { type: 'finish', finishReason: 'stop', usage: { promptTokens: 10, completionTokens: 0 } },
+    ]);
+  });
+
+  it('ignores partial_image events to avoid duplicate images', async () => {
+    const b64 = 'FINAL';
+    const body = sseStream([
+      `event: response.image_generation_call.partial_image\ndata: {"type":"response.image_generation_call.partial_image","partial_image_index":0,"partial_image_b64":"AAAA"}\n\n`,
+      `event: response.image_generation_call.partial_image\ndata: {"type":"response.image_generation_call.partial_image","partial_image_index":1,"partial_image_b64":"BBBB"}\n\n`,
+      `event: response.output_item.done\ndata: {"type":"response.output_item.done","output_index":0,"item":{"type":"image_generation_call","id":"ig_1","status":"completed","result":"${b64}"}}\n\n`,
+      'event: response.completed\ndata: {"type":"response.completed","response":{"status":"completed","usage":{"input_tokens":1,"output_tokens":1}}}\n\n',
+    ]);
+    const parts = await collectParts(mapSSEStream(body));
+
+    expect(parts).toEqual([
+      { type: 'file', mimeType: 'image/png', data: b64 },
+      { type: 'finish', finishReason: 'stop', usage: { promptTokens: 1, completionTokens: 1 } },
+    ]);
+  });
+
   it('handles chunked SSE data split across reads', async () => {
     const body = sseStream([
       'event: response.output_text.delta\ndata: {"type":"respo',
