@@ -5,6 +5,20 @@ export interface ResponsesAPIInput {
   input: any[];
 }
 
+function uint8ToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+function imagePartToContentItem(image: Uint8Array | URL, mimeType?: string) {
+  const image_url =
+    image instanceof URL
+      ? image.toString()
+      : `data:${mimeType ?? 'image/png'};base64,${uint8ToBase64(image)}`;
+  return { type: 'input_image' as const, image_url, detail: 'high' as const };
+}
+
 /**
  * Convert AI SDK LanguageModelV1Prompt to OpenAI Responses API input format.
  *
@@ -25,11 +39,17 @@ export function convertToResponsesAPI(prompt: LanguageModelV1Prompt): ResponsesA
         break;
 
       case 'user': {
-        const textParts = message.content
-          .filter((p) => p.type === 'text')
-          .map((p) => ({ type: 'input_text' as const, text: (p as { type: 'text'; text: string }).text }));
-        if (textParts.length > 0) {
-          input.push({ type: 'message', role: 'user', content: textParts });
+        const content: any[] = [];
+        for (const p of message.content) {
+          if (p.type === 'text') {
+            content.push({ type: 'input_text', text: (p as { type: 'text'; text: string }).text });
+          } else if (p.type === 'image') {
+            const img = p as { type: 'image'; image: Uint8Array | URL; mimeType?: string };
+            content.push(imagePartToContentItem(img.image, img.mimeType));
+          }
+        }
+        if (content.length > 0) {
+          input.push({ type: 'message', role: 'user', content });
         }
         break;
       }
