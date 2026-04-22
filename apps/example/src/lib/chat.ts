@@ -6,6 +6,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createChatGPT, chatgptTools } from '@rn-ai-kit/chatgpt-provider';
 import { fetch as expoFetch } from 'expo/fetch';
 import { authManager } from './auth';
+import { getInstallationId } from './installationId';
 
 type UIMessagePart = UIMessage['parts'][number];
 
@@ -37,7 +38,17 @@ interface StreamCallbacks {
 
 const fetch = expoFetch as unknown as typeof globalThis.fetch;
 
-function createModel(providerId: string, modelId: string, apiKey: string) {
+interface CreateModelOptions {
+  installationId?: string;
+  conversationId?: string;
+}
+
+function createModel(
+  providerId: string,
+  modelId: string,
+  apiKey: string,
+  opts: CreateModelOptions = {},
+) {
   switch (providerId) {
     case 'anthropic':
       return createAnthropic({ apiKey, fetch })(modelId);
@@ -47,7 +58,12 @@ function createModel(providerId: string, modelId: string, apiKey: string) {
     case 'google':
       return createGoogleGenerativeAI({ apiKey, fetch })(modelId);
     case 'openai-codex':
-      return createChatGPT({ apiKey, fetch })(modelId);
+      return createChatGPT({
+        apiKey,
+        fetch,
+        installationId: opts.installationId,
+        conversationId: opts.conversationId,
+      })(modelId);
     default:
       return createOpenAI({ apiKey, fetch })(modelId);
   }
@@ -61,6 +77,7 @@ export async function sendMessage(
   modelId: string,
   callbacks: StreamCallbacks,
   userAttachments: UserAttachment[] = [],
+  conversationId?: string,
 ): Promise<void> {
   const apiKey = await authManager.getApiKey(providerId);
   if (!apiKey) {
@@ -68,7 +85,12 @@ export async function sendMessage(
     return;
   }
 
-  const model = createModel(providerId, modelId, apiKey);
+  const installationId =
+    providerId === 'openai-codex' ? await getInstallationId() : undefined;
+  const model = createModel(providerId, modelId, apiKey, {
+    installationId,
+    conversationId,
+  });
 
   type MessageContentPart =
     | { type: 'text'; text: string }

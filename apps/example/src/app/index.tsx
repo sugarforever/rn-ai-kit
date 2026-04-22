@@ -212,6 +212,7 @@ export default function ChatScreen() {
           },
         },
         userAttachmentsForModel,
+        currentSessionId ?? undefined,
       );
 
       setIsStreaming(false);
