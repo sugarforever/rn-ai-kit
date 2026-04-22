@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, Image } from 'react-native';
 import Markdown from 'react-native-marked';
 import type { ChatMessage } from '../lib/chat';
 
@@ -48,33 +48,43 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
         { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
       ]}
     >
-      {message.isStreaming && !message.content ? (
+      {message.isStreaming && !message.content && !message.images?.length ? (
         <TypingIndicator />
       ) : (
         <View style={styles.assistantContent}>
           <View style={styles.accentBar} />
           <View style={styles.markdownWrap}>
-            <Markdown
-              value={message.content || ' '}
-              flatListProps={{
-                scrollEnabled: false,
-                style: { backgroundColor: 'transparent' },
-              }}
-              styles={{
-                list: { width: 24 },
-                li: { fontSize: 16, lineHeight: 24 },
-                paragraph: { paddingVertical: 0, marginBottom: 8 },
-              }}
-              theme={{
-                colors: {
-                  text: '#1A1A1A',
-                  code: '#F0EDE8',
-                  link: '#8B6914',
-                  border: '#E8E4DD',
-                  background: '#FAFAF7',
-                },
-              }}
-            />
+            {message.content ? (
+              <Markdown
+                value={message.content}
+                flatListProps={{
+                  scrollEnabled: false,
+                  style: { backgroundColor: 'transparent' },
+                }}
+                styles={{
+                  list: { width: 24 },
+                  li: { fontSize: 16, lineHeight: 24 },
+                  paragraph: { paddingVertical: 0, marginBottom: 8 },
+                }}
+                theme={{
+                  colors: {
+                    text: '#1A1A1A',
+                    code: '#F0EDE8',
+                    link: '#8B6914',
+                    border: '#E8E4DD',
+                    background: '#FAFAF7',
+                  },
+                }}
+              />
+            ) : null}
+            {message.images?.map((img, i) => (
+              <Image
+                key={i}
+                source={{ uri: `data:${img.mimeType};base64,${img.base64}` }}
+                style={styles.image}
+                resizeMode="contain"
+              />
+            ))}
           </View>
         </View>
       )}
@@ -148,6 +158,13 @@ const styles = StyleSheet.create({
   },
   markdownWrap: {
     flex: 1,
+  },
+  image: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 12,
+    marginTop: 8,
+    backgroundColor: '#EDE8DC',
   },
   typingRow: {
     flexDirection: 'row',

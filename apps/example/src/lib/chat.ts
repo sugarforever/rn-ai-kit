@@ -3,21 +3,28 @@ import type { UIMessage } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { createChatGPT } from '@rn-ai-kit/chatgpt-provider';
+import { createChatGPT, chatgptTools } from '@rn-ai-kit/chatgpt-provider';
 import { fetch as expoFetch } from 'expo/fetch';
 import { authManager } from './auth';
 
 type UIMessagePart = UIMessage['parts'][number];
 
+export interface GeneratedImage {
+  base64: string;
+  mimeType: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  images?: GeneratedImage[];
   isStreaming?: boolean;
 }
 
 interface StreamCallbacks {
   onTextDelta: (text: string) => void;
+  onFile?: (file: GeneratedImage) => void;
   onDone: (fullText: string, parts: UIMessagePart[]) => void;
   onError: (error: string) => void;
 }
@@ -62,16 +69,33 @@ export async function sendMessage(
   }
   messages.push({ role: 'user', content: userText });
 
+  // Offer the built-in image_generation tool when talking to ChatGPT OAuth.
+  // The model decides whether to invoke it based on the user prompt.
+  const tools =
+    providerId === 'openai-codex'
+      ? { image_generation: chatgptTools.imageGeneration() }
+      : undefined;
+
   try {
-    const result = streamText({ model, system: systemPrompt, messages });
+    const result = streamText({ model, system: systemPrompt, messages, tools: tools as any });
 
     let fullText = '';
+    const images: GeneratedImage[] = [];
     for await (const part of result.fullStream) {
       switch (part.type) {
         case 'text-delta':
           fullText += part.textDelta;
           callbacks.onTextDelta(part.textDelta);
           break;
+        case 'file': {
+          const mimeType = part.mimeType ?? 'image/png';
+          if (mimeType.startsWith('image/')) {
+            const img: GeneratedImage = { base64: part.base64, mimeType };
+            images.push(img);
+            callbacks.onFile?.(img);
+          }
+          break;
+        }
         case 'error':
           callbacks.onError(
             part.error instanceof Error ? part.error.message : String(part.error),
@@ -80,9 +104,15 @@ export async function sendMessage(
       }
     }
 
-    const parts: UIMessagePart[] = fullText
-      ? [{ type: 'text', text: fullText } as UIMessagePart]
-      : [];
+    const parts: UIMessagePart[] = [];
+    if (fullText) parts.push({ type: 'text', text: fullText } as UIMessagePart);
+    for (const img of images) {
+      parts.push({
+        type: 'file',
+        data: img.base64,
+        mimeType: img.mimeType,
+      } as UIMessagePart);
+    }
     callbacks.onDone(fullText, parts);
   } catch (e: any) {
     callbacks.onError(e.message ?? String(e));

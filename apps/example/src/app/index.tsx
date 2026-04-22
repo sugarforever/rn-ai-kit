@@ -16,7 +16,7 @@ import {
 } from '@rn-ai-kit/sessions';
 import { MessageBubble } from '../components/MessageBubble';
 import { ChatInput } from '../components/ChatInput';
-import { sendMessage, type ChatMessage } from '../lib/chat';
+import { sendMessage, type ChatMessage, type GeneratedImage } from '../lib/chat';
 import { authManager } from '../lib/auth';
 
 const DEFAULT_MODELS: Record<string, string> = {
@@ -35,6 +35,20 @@ function partsToText(parts: Array<{ type: string; text?: string }>): string {
     .filter((p) => p.type === 'text' && typeof p.text === 'string')
     .map((p) => p.text as string)
     .join('');
+}
+
+function partsToImages(
+  parts: Array<{ type: string; data?: string; mimeType?: string }>,
+): GeneratedImage[] {
+  return parts
+    .filter(
+      (p) =>
+        p.type === 'file' &&
+        typeof p.data === 'string' &&
+        typeof p.mimeType === 'string' &&
+        p.mimeType.startsWith('image/'),
+    )
+    .map((p) => ({ base64: p.data as string, mimeType: p.mimeType as string }));
 }
 
 export default function ChatScreen() {
@@ -70,6 +84,7 @@ export default function ChatScreen() {
         id: m.id,
         role: m.role as 'user' | 'assistant',
         content: partsToText(m.parts as any),
+        images: partsToImages(m.parts as any),
       }));
     return streamingMessage ? [...rehydrated, streamingMessage] : rehydrated;
   }, [persisted, streamingMessage]);
@@ -129,6 +144,13 @@ export default function ChatScreen() {
             setStreamingMessage((prev) =>
               prev && prev.id === streamingId
                 ? { ...prev, content: streamedText }
+                : prev,
+            );
+          },
+          onFile: (img) => {
+            setStreamingMessage((prev) =>
+              prev && prev.id === streamingId
+                ? { ...prev, images: [...(prev.images ?? []), img] }
                 : prev,
             );
           },
