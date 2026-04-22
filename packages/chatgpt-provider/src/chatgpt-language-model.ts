@@ -25,8 +25,6 @@ export interface ChatGPTLanguageModelConfig {
   fetch?: typeof globalThis.fetch;
   installationId?: string;
   conversationId?: string;
-  /** If true, log outbound request body + headers and raw SSE events to console. */
-  debug?: boolean;
 }
 
 export class ChatGPTLanguageModel implements LanguageModelV1 {
@@ -204,18 +202,11 @@ export class ChatGPTLanguageModel implements LanguageModelV1 {
       ? AbortSignal.any([options.abortSignal, controller.signal])
       : controller.signal;
 
-    const headers = this.buildHeaders();
-    if (this.config.debug) {
-      const redactedHeaders = { ...headers, Authorization: 'Bearer <redacted>' };
-      // eslint-disable-next-line no-console
-      console.log('[chatgpt-provider] → POST', url, '\nheaders:', redactedHeaders, '\nbody:', body);
-    }
-
     let response: Response;
     try {
       response = await fetchFn(url, {
         method: 'POST',
-        headers,
+        headers: this.buildHeaders(),
         body: JSON.stringify(body),
         signal,
       });
@@ -244,16 +235,8 @@ export class ChatGPTLanguageModel implements LanguageModelV1 {
       throw new Error('Response body is null — streaming not supported by this fetch implementation');
     }
 
-    if (this.config.debug) {
-      // eslint-disable-next-line no-console
-      console.log(
-        '[chatgpt-provider] ← response headers:',
-        Object.fromEntries(response.headers.entries()),
-      );
-    }
-
     return {
-      stream: mapSSEStream(response.body, this.config.debug ? (ev) => console.log('[chatgpt-provider] SSE', ev.type ?? '', ev) : undefined),
+      stream: mapSSEStream(response.body),
       rawCall: { rawPrompt: body.input, rawSettings: {} },
       rawResponse: { headers: Object.fromEntries(response.headers.entries()) },
       warnings: [],

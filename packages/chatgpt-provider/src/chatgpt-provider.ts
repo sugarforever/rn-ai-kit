@@ -19,8 +19,6 @@ export interface ChatGPTProviderOptions {
    * and is part of first-party client signals.
    */
   conversationId?: string;
-  /** Log outbound request body + headers and raw SSE events to console. */
-  debug?: boolean;
 }
 
 export interface ChatGPTProvider {
@@ -44,7 +42,6 @@ export function createChatGPT(options: ChatGPTProviderOptions): ChatGPTProvider 
     fetch: options.fetch,
     installationId: options.installationId,
     conversationId: options.conversationId,
-    debug: options.debug,
   };
 
   return (modelId: string) => new ChatGPTLanguageModel(modelId, config);

@@ -4,10 +4,7 @@ import type { LanguageModelV1StreamPart } from '@ai-sdk/provider';
  * Transform a raw SSE byte stream from the ChatGPT backend API into
  * AI SDK LanguageModelV1StreamPart objects.
  */
-export function mapSSEStream(
-  body: ReadableStream<Uint8Array>,
-  onEvent?: (event: any) => void,
-): ReadableStream<LanguageModelV1StreamPart> {
+export function mapSSEStream(body: ReadableStream<Uint8Array>): ReadableStream<LanguageModelV1StreamPart> {
   let buffer = '';
   const decoder = new TextDecoder();
   const pendingTools = new Map<number, { id: string; name: string; args: string }>();
@@ -46,8 +43,6 @@ export function mapSSEStream(
             idx = buffer.indexOf('\n\n');
             continue;
           }
-
-          onEvent?.(event);
 
           const type = event.type as string;
 
