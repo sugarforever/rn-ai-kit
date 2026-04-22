@@ -14,11 +14,17 @@ export interface GeneratedImage {
   mimeType: string;
 }
 
+export interface UserAttachment {
+  base64: string;
+  mimeType: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   images?: GeneratedImage[];
+  attachments?: UserAttachment[];
   isStreaming?: boolean;
 }
 
@@ -54,6 +60,7 @@ export async function sendMessage(
   providerId: string,
   modelId: string,
   callbacks: StreamCallbacks,
+  userAttachments: UserAttachment[] = [],
 ): Promise<void> {
   const apiKey = await authManager.getApiKey(providerId);
   if (!apiKey) {
@@ -63,11 +70,40 @@ export async function sendMessage(
 
   const model = createModel(providerId, modelId, apiKey);
 
-  const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+  type MessageContentPart =
+    | { type: 'text'; text: string }
+    | { type: 'image'; image: string; mimeType: string };
+  type Message =
+    | { role: 'assistant'; content: string }
+    | { role: 'user'; content: string | MessageContentPart[] };
+
+  const messages: Message[] = [];
   for (const m of history) {
-    messages.push({ role: m.role, content: m.content });
+    if (m.role === 'assistant') {
+      messages.push({ role: 'assistant', content: m.content });
+      continue;
+    }
+    if (m.attachments && m.attachments.length > 0) {
+      const parts: MessageContentPart[] = [];
+      if (m.content) parts.push({ type: 'text', text: m.content });
+      for (const a of m.attachments) {
+        parts.push({ type: 'image', image: a.base64, mimeType: a.mimeType });
+      }
+      messages.push({ role: 'user', content: parts });
+    } else {
+      messages.push({ role: 'user', content: m.content });
+    }
   }
-  messages.push({ role: 'user', content: userText });
+  if (userAttachments.length > 0) {
+    const parts: MessageContentPart[] = [];
+    if (userText) parts.push({ type: 'text', text: userText });
+    for (const a of userAttachments) {
+      parts.push({ type: 'image', image: a.base64, mimeType: a.mimeType });
+    }
+    messages.push({ role: 'user', content: parts });
+  } else {
+    messages.push({ role: 'user', content: userText });
+  }
 
   // Offer the built-in image_generation tool when talking to ChatGPT OAuth.
   // The model decides whether to invoke it based on the user prompt.
@@ -77,7 +113,7 @@ export async function sendMessage(
       : undefined;
 
   try {
-    const result = streamText({ model, system: systemPrompt, messages, tools: tools as any });
+    const result = streamText({ model, system: systemPrompt, messages: messages as any, tools: tools as any });
 
     let fullText = '';
     const images: GeneratedImage[] = [];

@@ -15,8 +15,13 @@ import {
   titleFromFirstMessage,
 } from '@rn-ai-kit/sessions';
 import { MessageBubble } from '../components/MessageBubble';
-import { ChatInput } from '../components/ChatInput';
-import { sendMessage, type ChatMessage, type GeneratedImage } from '../lib/chat';
+import { ChatInput, type PickedAttachment } from '../components/ChatInput';
+import {
+  sendMessage,
+  type ChatMessage,
+  type GeneratedImage,
+  type UserAttachment,
+} from '../lib/chat';
 import { authManager } from '../lib/auth';
 
 const DEFAULT_MODELS: Record<string, string> = {
@@ -40,6 +45,20 @@ function partsToText(parts: Array<{ type: string; text?: string }>): string {
 function partsToImages(
   parts: Array<{ type: string; data?: string; mimeType?: string }>,
 ): GeneratedImage[] {
+  return parts
+    .filter(
+      (p) =>
+        p.type === 'file' &&
+        typeof p.data === 'string' &&
+        typeof p.mimeType === 'string' &&
+        p.mimeType.startsWith('image/'),
+    )
+    .map((p) => ({ base64: p.data as string, mimeType: p.mimeType as string }));
+}
+
+function partsToAttachments(
+  parts: Array<{ type: string; data?: string; mimeType?: string }>,
+): UserAttachment[] {
   return parts
     .filter(
       (p) =>
@@ -80,17 +99,21 @@ export default function ChatScreen() {
   const displayMessages = useMemo<ChatMessage[]>(() => {
     const rehydrated: ChatMessage[] = persisted
       .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .map((m) => ({
-        id: m.id,
-        role: m.role as 'user' | 'assistant',
-        content: partsToText(m.parts as any),
-        images: partsToImages(m.parts as any),
-      }));
+      .map((m) => {
+        const role = m.role as 'user' | 'assistant';
+        return {
+          id: m.id,
+          role,
+          content: partsToText(m.parts as any),
+          images: role === 'assistant' ? partsToImages(m.parts as any) : undefined,
+          attachments: role === 'user' ? partsToAttachments(m.parts as any) : undefined,
+        };
+      });
     return streamingMessage ? [...rehydrated, streamingMessage] : rehydrated;
   }, [persisted, streamingMessage]);
 
   const handleSend = useCallback(
-    async (text: string) => {
+    async (text: string, attachment?: PickedAttachment) => {
       if (isStreaming) return;
       if (!activeProvider) {
         setStreamingMessage({
@@ -104,7 +127,7 @@ export default function ChatScreen() {
       let currentSessionId = sessionId;
       if (!currentSessionId) {
         const s = await store.createSession({
-          title: titleFromFirstMessage(text),
+          title: titleFromFirstMessage(text || 'Image'),
           providerId: activeProvider.id,
           modelId: activeProvider.model,
         });
@@ -114,9 +137,18 @@ export default function ChatScreen() {
         await updateSession({ providerId: activeProvider.id, modelId: activeProvider.model });
       }
 
+      const userParts: any[] = [];
+      if (text) userParts.push({ type: 'text', text });
+      if (attachment) {
+        userParts.push({
+          type: 'file',
+          data: attachment.base64,
+          mimeType: attachment.mimeType,
+        });
+      }
       await store.appendMessage(currentSessionId, {
         role: 'user',
-        parts: [{ type: 'text', text } as any],
+        parts: userParts,
       });
 
       setIsStreaming(true);
@@ -126,11 +158,19 @@ export default function ChatScreen() {
 
       const historyForModel: ChatMessage[] = persisted
         .filter((m) => m.role === 'user' || m.role === 'assistant')
-        .map((m) => ({
-          id: m.id,
-          role: m.role as 'user' | 'assistant',
-          content: partsToText(m.parts as any),
-        }));
+        .map((m) => {
+          const role = m.role as 'user' | 'assistant';
+          return {
+            id: m.id,
+            role,
+            content: partsToText(m.parts as any),
+            attachments: role === 'user' ? partsToAttachments(m.parts as any) : undefined,
+          };
+        });
+
+      const userAttachmentsForModel: UserAttachment[] = attachment
+        ? [{ base64: attachment.base64, mimeType: attachment.mimeType }]
+        : [];
 
       await sendMessage(
         text,
@@ -171,6 +211,7 @@ export default function ChatScreen() {
             });
           },
         },
+        userAttachmentsForModel,
       );
 
       setIsStreaming(false);

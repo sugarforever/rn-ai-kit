@@ -31,11 +31,21 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
           { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
         ]}
       >
-        <View style={styles.userBubble}>
-          <Text style={styles.userText} selectable>
-            {message.content}
-          </Text>
-        </View>
+        {message.attachments?.map((att, i) => (
+          <Image
+            key={i}
+            source={{ uri: `data:${att.mimeType};base64,${att.base64}` }}
+            style={styles.userImage}
+            resizeMode="cover"
+          />
+        ))}
+        {message.content ? (
+          <View style={styles.userBubble}>
+            <Text style={styles.userText} selectable>
+              {message.content}
+            </Text>
+          </View>
+        ) : null}
       </Animated.View>
     );
   }
@@ -164,6 +174,13 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     borderRadius: 12,
     marginTop: 8,
+    backgroundColor: '#EDE8DC',
+  },
+  userImage: {
+    width: 220,
+    aspectRatio: 1,
+    borderRadius: 16,
+    marginBottom: 6,
     backgroundColor: '#EDE8DC',
   },
   typingRow: {

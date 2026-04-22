@@ -15,6 +15,15 @@
       "bundler": "metro"
     },
     "platforms": ["ios", "android"],
-    "plugins": ["expo-router", "expo-secure-store"]
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow RN AI Kit to attach photos to your conversations."
+        }
+      ]
+    ]
   }
 }
