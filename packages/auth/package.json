@@ -1,12 +1,38 @@
 {
   "name": "@rn-ai-kit/auth",
   "version": "0.1.0",
-  "private": true,
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "description": "OAuth and API key management for AI providers (Anthropic, OpenAI Codex, Google Gemini, GitHub Copilot, Google Antigravity) on React Native / Expo.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "source": "./src/index.ts",
+  "react-native": "./src/index.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sugarforever/rn-ai-kit.git",
+    "directory": "packages/auth"
+  },
+  "keywords": [
+    "react-native",
+    "expo",
+    "oauth",
+    "anthropic",
+    "openai",
+    "ai"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "rm -rf dist && npm run build"
   },
   "dependencies": {
     "expo-linking": "~55.0.13",

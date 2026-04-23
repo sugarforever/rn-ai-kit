@@ -1,12 +1,37 @@
 {
   "name": "@rn-ai-kit/chatgpt-provider",
   "version": "0.1.0",
-  "private": true,
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "description": "Vercel AI SDK LanguageModelV1 provider for ChatGPT subscription OAuth tokens. Routes through chatgpt.com/backend-api/codex/responses.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "source": "./src/index.ts",
+  "react-native": "./src/index.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sugarforever/rn-ai-kit.git",
+    "directory": "packages/chatgpt-provider"
+  },
+  "keywords": [
+    "ai-sdk",
+    "chatgpt",
+    "openai",
+    "responses-api",
+    "react-native"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "rm -rf dist && npm run build"
   },
   "dependencies": {
     "@ai-sdk/provider": "^1.1.0"

@@ -8,7 +8,9 @@
   ],
   "scripts": {
     "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "npm run build --workspaces --if-present",
+    "test:packages": "npm test --workspaces --if-present"
   },
   "dependencies": {
     "react-dom": "^19.2.5",

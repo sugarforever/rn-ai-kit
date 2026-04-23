@@ -1,12 +1,37 @@
 {
   "name": "@rn-ai-kit/sessions",
   "version": "0.1.0",
-  "private": true,
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "description": "SQLite-backed chat session store with React hooks for Expo apps.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "source": "./src/index.ts",
+  "react-native": "./src/index.ts",
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sugarforever/rn-ai-kit.git",
+    "directory": "packages/sessions"
+  },
+  "keywords": [
+    "react-native",
+    "expo",
+    "sqlite",
+    "chat",
+    "ai-sdk"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "rm -rf dist && npm run build"
   },
   "peerDependencies": {
     "ai": "^4.0.0",
