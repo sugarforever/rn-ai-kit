@@ -1,15 +1,15 @@
 {
   "expo": {
-    "name": "RN AI Kit Example",
-    "slug": "rn-ai-kit-example",
+    "name": "Orla",
+    "slug": "orla",
     "version": "0.1.0",
-    "scheme": "rn-ai-kit",
+    "scheme": "orla",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.rnaikit.example"
+      "bundleIdentifier": "app.heyorla"
     },
     "web": {
       "bundler": "metro"
@@ -21,7 +21,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow RN AI Kit to attach photos to your conversations."
+          "photosPermission": "Allow Orla to attach photos to your conversations."
         }
       ]
     ]

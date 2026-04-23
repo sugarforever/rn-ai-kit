@@ -66,7 +66,7 @@ await auth.login('openai-codex', () =>
 );
 ```
 
-(See `apps/example/src/app/settings.tsx` for the complete pattern the example app ships with.)
+(See `apps/orla/src/app/settings.tsx` for the complete pattern Orla ships with.)
 
 ChatGPT provider with AI SDK:
 
@@ -90,17 +90,19 @@ for await (const chunk of result.textStream) {
 }
 ```
 
-## Example app
+## Orla (reference app)
+
+[Orla](https://heyorla.app) is the reference app built on these packages — a warm, editorial chat client for Claude and ChatGPT subscriptions. It ships from `apps/orla` and is the best worked example of the library in practice.
 
 ```bash
 git clone https://github.com/sugarforever/rn-ai-kit.git
 cd rn-ai-kit
 npm install
-cd apps/example
+cd apps/orla
 npx expo start --clear
 ```
 
-The example demonstrates:
+Orla demonstrates:
 - OAuth sign-in for all 5 providers, API key entry fallback
 - Streaming chat with Markdown rendering
 - Session list with rename/delete, persistent across app relaunches

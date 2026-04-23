@@ -30,7 +30,7 @@ export default function SettingsScreen() {
             'After signing in, the browser may show an error page. Copy the full URL from the address bar and paste it here.',
             [
               { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
-              { text: 'Submit', onPress: (text) => resolve(text ?? null) },
+              { text: 'Submit', onPress: (text?: string) => resolve(text ?? null) },
             ],
             'plain-text',
           );

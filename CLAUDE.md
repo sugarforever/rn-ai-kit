@@ -6,11 +6,11 @@ Context for Claude Code sessions working on this repo. Read this first.
 
 **rn-ai-kit** — a React Native / Expo monorepo for integrating AI providers into mobile apps.
 
-Two published packages + one example app:
+Two published packages + one shipping app:
 
 - **`@rn-ai-kit/auth`** — OAuth and API key management for 5 AI providers (Anthropic, OpenAI Codex, Google Gemini, GitHub Copilot, Google Antigravity). Handles PKCE, device-code flow, token refresh, SecureStore persistence.
 - **`@rn-ai-kit/chatgpt-provider`** — AI SDK `LanguageModelV1` provider for ChatGPT subscription OAuth tokens. Routes through `chatgpt.com/backend-api/codex/responses` (not the standard OpenAI API).
-- **`apps/example`** — minimal Expo chat app demonstrating both packages end-to-end.
+- **`apps/orla`** — **Orla** (heyorla.app), an Expo chat app built on both packages. Not a throwaway example — ships regularly to the App Store and doubles as the canonical reference for how to use the library.
 
 ## History (rename)
 
@@ -26,7 +26,7 @@ rn-ai-kit/
 │   ├── auth/                      → @rn-ai-kit/auth
 │   └── chatgpt-provider/          → @rn-ai-kit/chatgpt-provider
 ├── apps/
-│   └── example/                   → Expo chat demo
+│   └── orla/                      → Orla (heyorla.app) — shipping iOS chat app
 ├── docs/superpowers/              → design specs + plans (historical)
 └── .worktrees/phase1-packages/    → active development worktree
 ```
@@ -35,10 +35,10 @@ rn-ai-kit/
 
 - `AuthManager.ts` — orchestrates login/logout/getApiKey, token refresh, OAuth flows
 - `OAuthMobileAdapter.ts` — mobile PKCE + browser-based authorization via `expo-web-browser`. Uses `openBrowserAsync` for localhost redirects (like OpenAI Codex), `openAuthSessionAsync` for HTTPS redirects.
-- `SecureStoreBackend.ts` — credential storage via `expo-secure-store`. Key prefix `rn-ai-kit.cred.*`
+- `SecureStoreBackend.ts` — credential storage via `expo-secure-store`. Accepts a `{ namespace }` option (default `'rn-ai-kit'`); keys become `{namespace}.cred.*`. Orla passes `namespace: 'orla'`.
 - `providers/registry.ts` — single source of truth for 5 provider configs (client IDs, endpoints, scopes, flow type)
 - Client IDs reuse well-known CLI OAuth apps (Claude Code, Codex CLI, Gemini CLI, GitHub Copilot CLI)
-- Deep link scheme: `rn-ai-kit://`
+- Deep link scheme is app-defined. Orla uses `orla://`. The auth package does not depend on any specific scheme — all OAuth redirects are HTTPS or localhost callbacks registered on the upstream CLI client IDs.
 
 ### @rn-ai-kit/chatgpt-provider
 
@@ -48,9 +48,10 @@ rn-ai-kit/
 - Extracts `chatgpt-account-id` from JWT token; sends `originator: rn-ai-kit`, `OpenAI-Beta: responses=experimental`
 - Zero runtime deps except `@ai-sdk/provider` (types only); `fetch` injected by caller
 
-### Example app
+### Orla (apps/orla)
 
 - Expo Router, Expo SDK 55, React Native 0.83
+- Bundle ID: `app.heyorla`. Scheme: `orla://`. Domain: heyorla.app.
 - Single `streamText()` path for all providers (no branching in `chat.ts`)
 - Warm editorial design aesthetic — off-white `#FAFAF7`, dark charcoal user bubbles `#2C2C2E`, accent bar on assistant messages with Markdown rendering via `react-native-marked`
 - No tools, no skill engine — system prompt only
@@ -90,8 +91,8 @@ cd packages/chatgpt-provider && npx jest
 # Typecheck
 npx tsc --noEmit
 
-# Start example app
-cd apps/example && npx expo start --clear
+# Start Orla
+cd apps/orla && npx expo start --clear
 # press i for iOS simulator
 ```
 
@@ -103,8 +104,8 @@ cd apps/example && npx expo start --clear
 
 - If you add CLAUDE.md changes, make them in the repo root, not the worktree — wait, actually *do* edit in the worktree; it's a normal file like any other. The worktree uses the same working tree.
 - Running `jest` from the monorepo root uses `babel-jest` (the Metro/Expo transform) and chokes on `import type`. Always `cd` into a package directory to run its tests.
-- SecureStore keys cannot contain `:` — use `.`, `-`, or `_`. Key prefix is `rn-ai-kit.cred.` (dot separators).
-- If the SecureStore prefix changes, existing credentials are orphaned — user must sign in again.
+- SecureStore keys cannot contain `:` — use `.`, `-`, or `_`. Library default namespace is `rn-ai-kit`; Orla overrides with `orla`.
+- If the SecureStore namespace changes, existing credentials are orphaned — user must sign in again.
 
 ## User preferences learned
 
@@ -113,7 +114,7 @@ cd apps/example && npx expo start --clear
 - Wants corrected root causes, not symptom fixes
 - Uses iOS simulator for testing
 - Uses ChatGPT OAuth subscription for LLM testing
-- Values design craft — the example app's visual design matters because it's a developer showcase
+- Values design craft — Orla's visual design matters because it's both a shipping product and the library's public showcase
 
 ## When starting work
 

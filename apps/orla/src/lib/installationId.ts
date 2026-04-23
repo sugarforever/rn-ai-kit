@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 
-const KEY = 'rn-ai-kit.installation-id';
+const KEY = 'orla.installation-id';
 
 let cached: string | null = null;
 
