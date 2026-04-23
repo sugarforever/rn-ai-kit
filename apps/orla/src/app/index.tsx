@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
   FlatList,
@@ -7,7 +7,7 @@ import {
   Platform,
   StyleSheet,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   useSession,
@@ -82,19 +82,28 @@ export default function ChatScreen() {
   const [isStreaming, setIsStreaming] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
-  useEffect(() => {
-    (async () => {
-      const providers = authManager.listProviders();
-      for (const p of providers) {
-        const key = await authManager.getApiKey(p.id);
-        if (key) {
-          setActiveProvider({ id: p.id, model: DEFAULT_MODELS[p.id] ?? 'gpt-4o' });
-          return;
+  // Re-check credentials every time the screen regains focus — so returning
+  // from /settings after signing in (or out) is reflected immediately.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      (async () => {
+        const providers = authManager.listProviders();
+        for (const p of providers) {
+          const key = await authManager.getApiKey(p.id);
+          if (!active) return;
+          if (key) {
+            setActiveProvider({ id: p.id, model: DEFAULT_MODELS[p.id] ?? 'gpt-4o' });
+            return;
+          }
         }
-      }
-      setActiveProvider(null);
-    })();
-  }, []);
+        if (active) setActiveProvider(null);
+      })();
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
 
   const displayMessages = useMemo<ChatMessage[]>(() => {
     const rehydrated: ChatMessage[] = persisted
