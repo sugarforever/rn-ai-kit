@@ -10,7 +10,9 @@
     "test": "jest",
     "typecheck": "tsc --noEmit",
     "build": "npm run build --workspaces --if-present",
-    "test:packages": "npm test --workspaces --if-present"
+    "test:packages": "npm test --workspaces --if-present",
+    "release": "node scripts/publish.mjs",
+    "release:dry": "node scripts/publish.mjs --dry-run"
   },
   "dependencies": {
     "react-dom": "^19.2.5",

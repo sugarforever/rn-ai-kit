@@ -5,6 +5,12 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (pack + validate, do not publish)'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   release:
@@ -28,59 +34,18 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
-      - name: Test @rn-ai-kit/auth
-        working-directory: packages/auth
-        run: npx jest
+      - name: Test packages
+        run: |
+          (cd packages/auth && npx jest)
+          (cd packages/chatgpt-provider && npx jest)
+          (cd packages/sessions && npx jest)
 
-      - name: Test @rn-ai-kit/chatgpt-provider
-        working-directory: packages/chatgpt-provider
-        run: npx jest
-
-      - name: Test @rn-ai-kit/sessions
-        working-directory: packages/sessions
-        run: npx jest
-
-      - name: Build all packages
-        run: npm run build --workspaces --if-present
-
-      - name: Publish @rn-ai-kit/auth (if new version)
-        working-directory: packages/auth
+      - name: Publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          NAME=$(node -p "require('./package.json').name")
-          VERSION=$(node -p "require('./package.json').version")
-          if npm view "$NAME@$VERSION" version > /dev/null 2>&1; then
-            echo "$NAME@$VERSION already published — skipping."
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            npm run release:dry
           else
-            echo "Publishing $NAME@$VERSION…"
-            npm publish --provenance
-          fi
-
-      - name: Publish @rn-ai-kit/chatgpt-provider (if new version)
-        working-directory: packages/chatgpt-provider
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          NAME=$(node -p "require('./package.json').name")
-          VERSION=$(node -p "require('./package.json').version")
-          if npm view "$NAME@$VERSION" version > /dev/null 2>&1; then
-            echo "$NAME@$VERSION already published — skipping."
-          else
-            echo "Publishing $NAME@$VERSION…"
-            npm publish --provenance
-          fi
-
-      - name: Publish @rn-ai-kit/sessions (if new version)
-        working-directory: packages/sessions
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          NAME=$(node -p "require('./package.json').name")
-          VERSION=$(node -p "require('./package.json').version")
-          if npm view "$NAME@$VERSION" version > /dev/null 2>&1; then
-            echo "$NAME@$VERSION already published — skipping."
-          else
-            echo "Publishing $NAME@$VERSION…"
-            npm publish --provenance
+            npm run release
           fi
