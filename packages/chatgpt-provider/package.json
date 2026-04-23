@@ -2,10 +2,8 @@
   "name": "@rn-ai-kit/chatgpt-provider",
   "version": "0.1.0",
   "description": "Vercel AI SDK LanguageModelV1 provider for ChatGPT subscription OAuth tokens. Routes through chatgpt.com/backend-api/codex/responses.",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "source": "./src/index.ts",
-  "react-native": "./src/index.ts",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "files": [
     "dist",
     "src",
