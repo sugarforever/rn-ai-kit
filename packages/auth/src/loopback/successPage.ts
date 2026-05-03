@@ -28,13 +28,39 @@ const BODY = `<!doctype html>
 </html>
 `;
 
+function utf8ByteLength(s: string): number {
+  // `Buffer` is a Node global that doesn't exist in Hermes; `TextEncoder`
+  // is universal (RN, Node, browser) and gives the canonical UTF-8 length.
+  if (typeof TextEncoder !== 'undefined') {
+    return new TextEncoder().encode(s).length;
+  }
+  // Fallback: count UTF-8 bytes by inspecting code points. Still pure JS,
+  // works on any runtime even without TextEncoder.
+  let bytes = 0;
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff) {
+      bytes += 4;
+      i++; // skip low surrogate
+    } else bytes += 3;
+  }
+  return bytes;
+}
+
+let cachedResponse: string | null = null;
+
 /**
  * Build a complete HTTP/1.1 response (headers + body) for the OAuth-callback
  * success page. Returned as a single string ready to write to the socket.
+ *
+ * The body is static, so the response is computed once and cached.
  */
 export function successResponse(): string {
-  const contentLength = Buffer.byteLength(BODY, 'utf8');
-  return [
+  if (cachedResponse !== null) return cachedResponse;
+  const contentLength = utf8ByteLength(BODY);
+  cachedResponse = [
     'HTTP/1.1 200 OK',
     'Content-Type: text/html; charset=utf-8',
     `Content-Length: ${contentLength}`,
@@ -42,4 +68,5 @@ export function successResponse(): string {
     '',
     BODY,
   ].join('\r\n');
+  return cachedResponse;
 }
