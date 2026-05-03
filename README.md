@@ -48,7 +48,28 @@ await auth.setApiKey('anthropic', 'sk-ant-...');
 const token = await auth.getApiKey('anthropic');
 ```
 
-Auth — `openai-codex` needs a paste-back callback. OpenAI's ChatGPT OAuth app uses a `http://localhost:1455/auth/callback` redirect URI that mobile browsers can't follow (they show "This site can't be reached"). The user has to copy the URL from the browser address bar and paste it back. The SDK invokes the `onNeedManualCode` callback you provide to collect it:
+Auth — `openai-codex` (and Gemini / Antigravity) use loopback redirect URIs (e.g. `http://localhost:1455/auth/callback`) baked into upstream CLI OAuth clients. Mobile browsers can't reach those URLs. Two ways to handle it:
+
+**Option A — automatic (recommended)**: install `react-native-tcp-socket` and inject the loopback backend. The SDK spins up an in-app HTTP listener on `127.0.0.1:<port>` for the duration of the OAuth flow, captures the `code` automatically, and dismisses the browser. No paste needed.
+
+```bash
+npm install react-native-tcp-socket
+npx expo prebuild   # required: native autolinking
+```
+
+```ts
+import { AuthManager, OAuthMobileAdapter, SecureStoreBackend } from '@rn-ai-kit/auth';
+import { createTcpLoopback } from '@rn-ai-kit/auth/loopback';
+
+const auth = new AuthManager(
+  new SecureStoreBackend(),
+  new OAuthMobileAdapter({ loopback: createTcpLoopback() }),
+);
+
+await auth.login('openai-codex');  // listener handles the redirect — no paste
+```
+
+**Option B — manual paste fallback**: if `react-native-tcp-socket` isn't installed, or the listener can't bind (port held, network sandbox refused), the SDK invokes the `onNeedManualCode` callback you provide so the user can paste the redirected URL:
 
 ```ts
 import { Alert } from 'react-native';
@@ -71,7 +92,7 @@ await auth.login('openai-codex', () =>
 );
 ```
 
-(See `apps/orla/src/app/settings.tsx` for the complete pattern Orla ships with.)
+When the loopback backend is configured, the manual-paste callback is only invoked if the listener fails — wire up both paths for the best UX. (See `apps/orla/src/app/settings.tsx` for the complete pattern Orla ships with.)
 
 ChatGPT provider with AI SDK:
 

@@ -4,3 +4,9 @@ export { OAuthMobileAdapter } from './OAuthMobileAdapter';
 export type { AuthUrlParams } from './OAuthMobileAdapter';
 export { AuthManager } from './AuthManager';
 export type { OAuthProviderConfig } from './providers';
+export type { LoopbackBackend } from './LoopbackBackend';
+export {
+  LoopbackUnavailableError,
+  LoopbackTimeoutError,
+  AuthCancelledError,
+} from './errors';
