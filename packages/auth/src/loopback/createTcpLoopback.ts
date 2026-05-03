@@ -1,7 +1,18 @@
-import TcpSocket from 'react-native-tcp-socket';
 import type { LoopbackBackend } from '../LoopbackBackend';
 import { parseRequestLine } from './parseRequestLine';
 import { successResponse } from './successPage';
+
+// Lazy-require so importing this module does not pull in the native
+// `react-native-tcp-socket` binding at JS load time. On runtimes that
+// don't have the native module linked (e.g. Expo Go, web), the require
+// throws inside `listen()` and `OAuthMobileAdapter` treats it as a bind
+// failure and falls back to manual paste — same as if the listener had
+// failed to bind for any other reason.
+function loadTcpSocket(): typeof import('react-native-tcp-socket').default {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const mod = require('react-native-tcp-socket');
+  return mod.default ?? mod;
+}
 
 const MAX_HEADER_BYTES = 8192;
 const HEADER_TERMINATOR = '\r\n\r\n';
@@ -21,6 +32,14 @@ export function createTcpLoopback(): LoopbackBackend {
   return {
     listen: ({ port, path, signal }) =>
       new Promise<{ url: string } | null>((resolve, reject) => {
+        let TcpSocket: ReturnType<typeof loadTcpSocket>;
+        try {
+          TcpSocket = loadTcpSocket();
+        } catch (err) {
+          reject(err);
+          return;
+        }
+
         let settled = false;
         const settle = (value: { url: string } | null) => {
           if (settled) return;

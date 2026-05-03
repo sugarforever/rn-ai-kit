@@ -133,4 +133,21 @@ describe('createTcpLoopback', () => {
     controller.abort();
     await expect(promise).resolves.toBeNull();
   });
+
+  it('rejects (does not throw synchronously) when the native module is unavailable', async () => {
+    jest.resetModules();
+    jest.doMock('react-native-tcp-socket', () => {
+      throw new Error('Native module RNTcpSocket not found');
+    });
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { createTcpLoopback: lazyCreate } = require('../../src/loopback/createTcpLoopback');
+
+    const backend = lazyCreate();
+    const controller = new AbortController();
+    await expect(
+      backend.listen({ port: 1455, path: '/auth/callback', signal: controller.signal }),
+    ).rejects.toThrow('Native module RNTcpSocket not found');
+
+    jest.dontMock('react-native-tcp-socket');
+  });
 });
